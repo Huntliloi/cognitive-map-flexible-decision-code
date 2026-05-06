@@ -24,7 +24,7 @@ open_source_flexible_decision_code/
 |   |-- behavior/               # Behavioral summary tables
 |   |-- bms/                    # BMS raw and summarized tables
 |   |-- timecourse/             # ROI time-course summary tables
-|   `-- rsa_fig/                # RSA/RDM data and MATLAB/Python plotting scripts for Fig. 4/5
+|   `-- rsa_fig/                # RSA/RDM data and MATLAB/Python plotting scripts
 |-- figures_and_statistics/     # R Markdown scripts for statistical analyses and plotting
 `-- docs/                       # Notes copied from the original server analysis folder
 ```
