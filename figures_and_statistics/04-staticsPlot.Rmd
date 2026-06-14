@@ -1,0 +1,1866 @@
+---
+title: "Statics+plot for behavior"
+output: html_notebook
+date: 2024.6.1
+---
+ 
+# 初始设置加载
+```{r}
+library(tidyverse) 
+library(tidymodels) #打包操作 
+library(ggplot2)
+library(dplyr)
+library(afex)
+library(emmeans)
+library(multcomp)
+library(tidyr)
+library(kableExtra)
+library(knitr)
+library(broom)
+library(broomExtra)
+library(plotly) 
+library(devtools)
+library(bmsR)
+library(patchwork)
+library(lmtest)  # 包含lrtest的包，用于进行似然比统计量检验的函数之一
+library(ggpubr) # 包含ggscatter
+library(caret) # 正交化包
+library(R.matlab) # 读取matlab文件  .mat文件
+library(stats)
+```
+# 行为学结果，relate to Fig2
+## load数据集
+```{r}
+subSR4rbCue<- read.csv("E:/3、论文撰写/【表征学习】/数据及代码整理/data/behavior/subSR4rbCue.csv")
+subSR4wCue<- read.csv("E:/3、论文撰写/【表征学习】/数据及代码整理/data/behavior/subSR4wCue.csv")
+
+```
+## RT变化【rbCue】
+###获取四种可能距离度量的RTs沿距离变化的均值和方差[RT,rbCue]
+```{r}
+# 1D任务相关距离【D】
+aovD.mean=aggregate(subSR4wCue$RT,by=list(subSR4wCue$D1,subSR4wCue$sub),FUN=mean)
+aovD.1=aggregate(aovD.mean$x,by=list(aovD.mean$Group.1),FUN=mean) 
+aovD.2=aggregate(aovD.mean$x,by=list(aovD.mean$Group.1),FUN=sd) 
+aovD.MSd<-data.frame(D=aovD.1$Group.1,RT=aovD.1$x,sd=aovD.2$x)
+colnames(aovD.mean)=c("D","sub","RT")
+rm(aovD.1,aovD.2)
+
+# 1D任务无关距离【I】
+aovI.mean=aggregate(subSR4wCue$RT,by=list(subSR4wCue$D2,subSR4wCue$sub),FUN=mean)
+aovI.1=aggregate(aovI.mean$x,by=list(aovI.mean$Group.1),FUN=mean) 
+aovI.2=aggregate(aovI.mean$x,by=list(aovI.mean$Group.1),FUN=sd) 
+aovI.MSd<-data.frame(I=aovI.1$Group.1,RT=aovI.1$x,sd=aovI.2$x)
+colnames(aovI.mean)=c("I","sub","RT")
+rm(aovI.1,aovI.2)
+
+# 2D欧几里得距离【E】
+aovE.mean=aggregate(subSR4wCue$RT,by=list(subSR4wCue$E,subSR4wCue$sub),FUN=mean)
+aovE.1=aggregate(aovE.mean$x,by=list(aovE.mean$Group.1),FUN=mean) 
+aovE.2=aggregate(aovE.mean$x,by=list(aovE.mean$Group.1),FUN=sd) 
+aovE.MSd<-data.frame(E=aovE.1$Group.1,RT=aovE.1$x,sd=aovE.2$x)
+colnames(aovE.mean)=c("E","sub","RT")
+rm(aovE.1,aovE.2)
+
+# 2D对角距离【diag】
+aovdiag.mean=aggregate(subSR4wCue$RT,by=list(subSR4wCue$diagdiff,subSR4wCue$sub),FUN=mean) 
+aovdiag.1=aggregate(aovdiag.mean$x,by=list(aovdiag.mean$Group.1),FUN=mean) 
+aovdiag.2=aggregate(aovdiag.mean$x,by=list(aovdiag.mean$Group.1),FUN=sd) 
+aovdiag.MSd<-data.frame(diag=aovdiag.1$Group.1,RT=aovdiag.1$x,sd=aovdiag.2$x)
+colnames(aovdiag.mean)=c("diag","sub","RT")
+rm(aovdiag.1,aovdiag.2)
+
+```
+### 计算RT沿着距离变化的一阶线性趋势是否显著[RT,rbCue]
+```{r}
+aovD.mean$sub = as_factor(aovD.mean$sub)
+aovD.mean$D = as_factor(aovD.mean$D)
+aovI.mean$sub = as_factor(aovI.mean$sub)
+aovI.mean$I = as_factor(aovI.mean$I)
+aovE.mean$sub = as_factor(aovE.mean$sub)
+aovE.mean$E = as_factor(aovE.mean$E)
+aovdiag.mean$sub = as_factor(aovdiag.mean$sub)
+aovdiag.mean$diag = as_factor(aovdiag.mean$diag)
+
+
+dk_contrast <- aovD.mean %>%
+  nest() %>%
+  mutate(
+    fit = map(data, ~ lmer(RT ~ D+(1|sub), data =.x, contrasts = list(D = 'contr.poly'))),
+    tidied = map(fit, tidy) 
+  ) 
+
+dk_summary <- dk_contrast %>%
+  unnest(tidied) %>% 
+  dplyr::select(term, estimate,statistic, p.value)
+head(dk_summary)
+```
+## ACC变化【rbCue】
+###两个任务条件下的整体准确率
+```{r}
+# 将RESP中为nan的值全部替换为0
+subSR4rbCue$resp <- replace(subSR4rbCue$resp,is.na(subSR4rbCue$resp),0)
+subSR4wCue$resp <- replace(subSR4wCue$resp,is.na(subSR4wCue$resp),0)
+
+all1 <- subSR4rbCue %>% 
+  mutate(correct==resp)
+all2 <- subSR4wCue %>% 
+  mutate(correct==resp)
+all <- rbind(all1[c(4,21)],all2[c(4,23)])
+rm(all1,all2)
+
+aovrun1.True=aggregate(all$`correct == resp`==TRUE,by=list(all$sub),FUN=sum) 
+aovrun1.False=aggregate(all$`correct == resp`==FALSE,by=list(all$sub),FUN=sum) 
+aovrun1.mean<-data.frame(sub=aovrun1.True$Group.1,true=aovrun1.True$x,false=aovrun1.False$x,acc=aovrun1.True$x/(aovrun1.True$x+aovrun1.False$x))
+aovrun1.1=mean(aovrun1.mean$acc) 
+aovrun1.2=sd(aovrun1.mean$acc)
+rm(aovrun1.True,aovrun1.False,aovrun1.mean)
+head(aovrun1.1)
+head(aovrun1.2)
+
+```
+###获取四种可能距离度量的ACC沿距离变化的均值和方差[ACC,rbCue]
+```{r}
+all <- subSR4wCue %>% 
+  mutate(correct==resp)
+#####【D-ACC】######
+# 按被试分组计算每个被试的正确数目
+aovD.True=aggregate(all$`correct == resp`==TRUE,by=list(all$D1,all$sub),FUN=sum) 
+aovD.False=aggregate(all$`correct == resp`==FALSE,by=list(all$D1,all$sub),FUN=sum) 
+# 汇总被试准确率信息
+aovD.meanacc<-data.frame(D=aovD.True$Group.1,sub=aovD.True$Group.2,true=aovD.True$x,false=aovD.False$x,acc=aovD.True$x/(aovD.True$x+aovD.False$x))
+# 计算被试之间的准确率的均值方差
+aovD.1=aggregate(aovD.meanacc$acc,by=list(aovD.meanacc$D),FUN=mean) 
+aovD.2=aggregate(aovD.meanacc$acc,by=list(aovD.meanacc$D),FUN=sd) 
+aovD.acc<-data.frame(D=aovD.1$Group.1,acc=aovD.1$x,sd=aovD.2$x)
+rm(aovD.True,aovD.False,aovD.1,aovD.2)
+
+#####【I-ACC】######
+# 按被试分组计算每个被试的正确数目
+aovI.True=aggregate(all$`correct == resp`==TRUE,by=list(all$D2,all$sub),FUN=sum) 
+aovI.False=aggregate(all$`correct == resp`==FALSE,by=list(all$D2,all$sub),FUN=sum) 
+# 汇总被试准确率信息
+aovI.meanacc<-data.frame(I=aovI.True$Group.1,sub=aovI.True$Group.2,true=aovI.True$x,false=aovI.False$x,acc=aovI.True$x/(aovI.True$x+aovI.False$x))
+# 计算被试之间的准确率的均值方差
+aovI.1=aggregate(aovI.meanacc$acc,by=list(aovI.meanacc$I),FUN=mean) 
+aovI.2=aggregate(aovI.meanacc$acc,by=list(aovI.meanacc$I),FUN=sd) 
+aovI.acc<-data.frame(I=aovI.1$Group.1,acc=aovI.1$x,sd=aovI.2$x)
+rm(aovI.True,aovI.False,aovI.1,aovI.2)
+
+
+#####【E-ACC】###### 
+# 按被试分组计算每个被试的正确数目
+aovE.True=aggregate(all$`correct == resp`==TRUE,by=list(all$E,all$sub),FUN=sum) 
+aovE.False=aggregate(all$`correct == resp`==FALSE,by=list(all$E,all$sub),FUN=sum) 
+# 汇总被试准确率信息
+aovE.meanacc<-data.frame(E=aovE.True$Group.1,sub=aovE.True$Group.2,true=aovE.True$x,false=aovE.False$x,acc=aovE.True$x/(aovE.True$x+aovE.False$x))
+# 计算被试之间的准确率的均值方差
+aovE.1=aggregate(aovE.meanacc$acc,by=list(aovE.meanacc$E),FUN=mean) 
+aovE.2=aggregate(aovE.meanacc$acc,by=list(aovE.meanacc$E),FUN=sd) 
+aovE.acc<-data.frame(E=aovE.1$Group.1,acc=aovE.1$x,sd=aovE.2$x)
+rm(aovE.True,aovE.False,aovE.1,aovE.2)
+
+#####【Diag-ACC】###### 
+# 按被试分组计算每个被试的正确数目
+aovDiag.True=aggregate(all$`correct == resp`==TRUE,by=list(all$diagdiff,all$sub),FUN=sum) 
+aovDiag.False=aggregate(all$`correct == resp`==FALSE,by=list(all$diagdiff,all$sub),FUN=sum) 
+# 汇总被试准确率信息
+aovDiag.meanacc<-data.frame(diagdiff=aovDiag.True$Group.1,sub=aovDiag.True$Group.2,true=aovDiag.True$x,false=aovDiag.False$x,acc=aovDiag.True$x/(aovDiag.True$x+aovDiag.False$x))
+# 计算被试之间的准确率的均值方差
+aovDiag.1=aggregate(aovDiag.meanacc$acc,by=list(aovDiag.meanacc$diagdiff),FUN=mean) 
+aovDiag.2=aggregate(aovDiag.meanacc$acc,by=list(aovDiag.meanacc$diagdiff),FUN=sd) 
+aovDiag.acc<-data.frame(diagdiff=aovDiag.1$Group.1,acc=aovDiag.1$x,sd=aovDiag.2$x)
+rm(aovDiag.True,aovDiag.False,aovDiag.1,aovDiag.2)
+
+```
+### 计算准确率沿着距离变化的线性趋势是否显著
+```{r}
+aovD.meanacc$sub = as_factor(aovD.meanacc$sub)
+aovD.meanacc$D = as_factor(aovD.meanacc$D)
+aovI.meanacc$sub = as_factor(aovI.meanacc$sub)
+aovI.meanacc$I = as_factor(aovI.meanacc$I)
+aovE.meanacc$sub = as_factor(aovE.meanacc$sub)
+aovE.meanacc$E = as_factor(aovE.meanacc$E)
+aovdiag.meanacc$sub = as_factor(aovdiag.meanacc$sub)
+aovdiag.meanacc$diag = as_factor(aovdiag.meanacc$diag)
+
+dk_contrast <- aovD.meanacc %>%
+  nest() %>%
+  mutate(
+    fit = map(data, ~ lmer(acc ~ D+(1|sub), data =.x, contrasts = list(D = 'contr.poly'))),
+    tidied = map(fit, tidy) 
+  ) 
+
+dk_summary <- dk_contrast %>%
+  unnest(tidied) %>% 
+  dplyr::select(term, estimate,statistic, p.value)
+head(dk_summary)
+```
+## 画图 RT和ACC随时间的变化
+```{r}
+# 绘制"D-RT"
+p1 <- ggplot(data = aovD.mean, aes(x = as.numeric(factor(D)), y = RT)) +
+  geom_point(data = aovD.MSd, aes(x = as.numeric(factor(D)), y = RT), color = "black", size = 2) +
+  geom_errorbar(data = aovD.MSd, aes(x = as.numeric(factor(D)), ymin = RT - sd, ymax = RT + sd), width = 0.2, color = "black") +
+  geom_smooth(method = "lm", color = "black", linetype = "solid", size = 1, se = TRUE, fill = "#808080", alpha = 0.3) +  # 绘制线性回归趋势线并显示置信区间
+  scale_x_continuous(breaks = c(1, 2, 3))+
+  labs(title="D1-RT")+xlab(NULL)+ylab(NULL)+
+  coord_cartesian(ylim = c(0.3,1.4))+scale_y_continuous(breaks = c(0.4, 0.8, 1.2))+
+  theme(panel.grid.major=element_line(colour=NA),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        panel.grid.minor = element_blank(),
+        # axis.title.x=element_text(face="bold", color="black",size=10),#x轴字体
+        # axis.title.y=element_text(face="bold", color="black",size=10),#Y轴字体
+        axis.text.x=element_text(face="bold", color="black",size=10),#x轴刻度
+        axis.text.y=element_text(face="bold", color="black",size=10),#Y轴刻度
+        # axis.line.y=element_line(linetype=1,color="black",size=0.5),#Y轴轴线
+        # axis.line.x=element_line(linetype=1,color="black",size=0.5),#X轴轴线
+         legend.position = "none",plot.title = element_text(family = "serif", #字体
+                                  face = "bold",     #字体加粗
+                                  color = "black",      #字体颜色
+                                  size = 12,          #字体大小
+                                  hjust = 0.5,          #字体左右的位置
+                                  vjust = 0.5,          #字体上下的高度
+                                  angle = 0 ))        #字体倾斜的角度
+
+
+# 绘制"I-RT"
+p2 <- ggplot(data=aovI.mean,aes(x = as.numeric(factor(I)),y=RT))+
+  geom_point(data = aovI.MSd, aes(x = as.numeric(factor(I)), y = RT), color = "black", size = 2) +
+  geom_errorbar(data = aovI.MSd, aes(x = as.numeric(factor(I)), ymin = RT - sd, ymax = RT + sd), width = 0.2, color = "black") +
+  geom_smooth(method = "lm", color = "black", linetype = "solid", size = 1, se = TRUE, fill = "#808080", alpha = 0.3) +  # 绘制线性回归趋势线并显示置信区间
+  scale_x_continuous(breaks = c(1, 2, 3))+
+  labs(title="I-RT")+xlab(NULL)+ylab(NULL)+
+  coord_cartesian(ylim = c(0.3,1.4))+scale_y_continuous(breaks = c(0.4, 0.8, 1.2))+
+  theme(panel.grid.major=element_line(colour=NA),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        panel.grid.minor = element_blank(),
+        # axis.title.x=element_text(face="bold", color="black",size=10),#x轴字体
+        # axis.title.y=element_text(face="bold", color="black",size=10),#Y轴字体
+        axis.text.x=element_text(face="bold", color="black",size=10),#x轴刻度
+        axis.text.y=element_text(face="bold", color="black",size=10),#Y轴刻度
+        # axis.line.y=element_line(linetype=1,color="black",size=0.5),#Y轴轴线
+        # axis.line.x=element_line(linetype=1,color="black",size=0.5),#X轴轴线
+        legend.position = "none",plot.title = element_text(family = "serif", #字体
+                                  face = "bold",     #字体加粗
+                                  color = "black",      #字体颜色
+                                  size = 12,          #字体大小
+                                  hjust = 0.5,          #字体左右的位置
+                                  vjust = 0.5,          #字体上下的高度
+                                  angle = 0 ))        #字体倾斜的角度
+
+# 绘制"E-RT"
+p3 <- ggplot(data=aovE.mean,aes(x = as.numeric(factor(E)),y=RT))+
+  geom_point(data = aovE.MSd, aes(x = as.numeric(factor(E)), y = RT), color = "black", size = 2) +
+  geom_errorbar(data = aovE.MSd, aes(x = as.numeric(factor(E)), ymin = RT - sd, ymax = RT + sd), width = 0.2, color = "black") +
+  geom_smooth(method = "lm", color = "black", linetype = "solid", size = 1, se = TRUE, fill = "#808080", alpha = 0.3) +  # 绘制线性回归趋势线并显示置信区间
+  scale_x_continuous(breaks = c(1, 2, 3, 4, 5, 6),labels = c("√2", "√5", "√8", "√10", "√13", "√18")) +
+  labs(title="E-RT")+xlab(NULL)+ylab(NULL)+
+  coord_cartesian(ylim = c(0.3,1.4))+scale_y_continuous(breaks = c(0.4, 0.8, 1.2))+
+  theme(panel.grid.major=element_line(colour=NA),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        panel.grid.minor = element_blank(),
+        axis.text.x=element_text(face="bold", color="black",size=10),#x轴刻度
+        axis.text.y=element_text(face="bold", color="black",size=10),#Y轴刻度
+        legend.position = "none",plot.title = element_text(family = "serif", #字体
+                                  face = "bold",     #字体加粗
+                                  color = "black",      #字体颜色
+                                  size = 12,          #字体大小
+                                  hjust = 0.5,          #字体左右的位置
+                                  vjust = 0.5,          #字体上下的高度
+                                  angle = 0 ))        #字体倾斜的角度
+
+
+p4 <- ggplot(data=aovdiag.mean,aes(x = as.numeric(factor(diag)),y=RT))+
+  geom_point(data = aovdiag.MSd, aes(x = as.numeric(factor(diag)), y = RT), color = "black", size = 2) +
+  geom_errorbar(data = aovdiag.MSd, aes(x = as.numeric(factor(diag)), ymin = RT - sd, ymax = RT + sd), width = 0.2, color = "black") +
+  geom_smooth(method = "lm", color = "black", linetype = "solid", size = 1, se = TRUE, fill = "#808080", alpha = 0.3) +  # 绘制线性回归趋势线并显示置信区间
+  scale_x_continuous(breaks = c(1,2,3,4,5),labels = c("√2","√4.5","√8","√12.5","√18")) +
+  labs(title="Diag-RT")+xlab(NULL)+ylab(NULL)+
+  coord_cartesian(ylim = c(0.3,1.4))+scale_y_continuous(breaks = c(0.4, 0.8, 1.2))+
+  theme(panel.grid.major=element_line(colour=NA),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        panel.grid.minor = element_blank(),
+        axis.text.x=element_text(face="bold", color="black",size=10),#x轴刻度
+        axis.text.y=element_text(face="bold", color="black",size=10),#Y轴刻度
+        legend.position = "none",plot.title = element_text(family = "serif", #字体
+                                  face = "bold",     #字体加粗
+                                  color = "black",      #字体颜色
+                                  size = 12,          #字体大小
+                                  hjust = 0.5,          #字体左右的位置
+                                  vjust = 0.5,          #字体上下的高度
+                                  angle = 0 ))        #字体倾斜的角度
+
+
+# 绘制"D-ACC"
+p5 <- ggplot(data=aovD.meanacc,aes(x = as.numeric(factor(D)),y=acc))+
+  geom_point(data = aovD.acc, aes(x = as.numeric(factor(D)), y = acc), color = "black", size = 2) +
+  geom_errorbar(data = aovD.acc, aes(x = as.numeric(factor(D)), ymin = acc - sd, ymax = acc + sd), width = 0.2, color = "black") +
+  geom_smooth(method = "lm", color = "black", linetype = "solid", size = 1, se = TRUE, fill = "#808080", alpha = 0.3) +  # 绘制线性回归趋势线并显示置信区间
+  scale_x_continuous(breaks = c(1, 2, 3))+
+  labs(title="D-ACC")+xlab("D")+xlab(NULL)+ylab(NULL)+
+  coord_cartesian(ylim = c(0.8,1.09))+scale_y_continuous(breaks = c(0.8, 0.9, 1.0))+
+  theme(panel.grid.major=element_line(colour=NA),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        panel.grid.minor = element_blank(),
+        # axis.title.x=element_text(face="bold", color="black",size=10),#x轴字体
+        # axis.title.y=element_text(face="bold", color="black",size=10),#Y轴字体
+        axis.text.x=element_text(face="bold", color="black",size=10),#x轴刻度
+        axis.text.y=element_text(face="bold", color="black",size=10),#Y轴刻度
+        # axis.line.y=element_line(linetype=1,color="black",size=0.5),#Y轴轴线
+        # axis.line.x=element_line(linetype=1,color="black",size=0.5),#X轴轴线
+        legend.position = "none",plot.title = element_text(family = "serif", #字体
+                                  face = "bold",     #字体加粗
+                                  color = "black",      #字体颜色
+                                  size = 12,          #字体大小
+                                  hjust = 0.5,          #字体左右的位置
+                                  vjust = 0.5,          #字体上下的高度
+                                  angle = 0 ))        #字体倾斜的角度
+
+
+
+# 绘制"I-ACC"
+p6 <- ggplot(data=aovI.meanacc,aes(x = as.numeric(factor(I)),y=acc))+
+  geom_point(data = aovI.acc, aes(x = as.numeric(factor(I)), y = acc), color = "black", size = 2) +
+  geom_errorbar(data = aovI.acc, aes(x = as.numeric(factor(I)), ymin = acc - sd, ymax = acc + sd), width = 0.2, color = "black") +
+  geom_smooth(method = "lm", color = "black", linetype = "solid", size = 1, se = TRUE, fill = "#808080", alpha = 0.3) +  # 绘制线性回归趋势线并显示置信区间
+  scale_x_continuous(breaks = c(1, 2, 3))+
+  labs(title="I-ACC")+xlab(NULL)+ylab(NULL)+
+  coord_cartesian(ylim = c(0.8,1.09))+scale_y_continuous(breaks = c(0.8, 0.9, 1.0))+
+  theme(panel.grid.major=element_line(colour=NA),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        panel.grid.minor = element_blank(),
+        # axis.title.x=element_text(face="bold", color="black",size=10),#x轴字体
+        # Raxis.title.y=element_text(face="bold", color="black",size=10),#Y轴字体
+        axis.text.x=element_text(face="bold", color="black",size=10),#x轴刻度
+        axis.text.y=element_text(face="bold", color="black",size=10),#Y轴刻度
+        # axis.line.y=element_line(linetype=1,color="black",size=0.5),#Y轴轴线
+        # axis.line.x=element_line(linetype=1,color="black",size=0.5),#X轴轴线
+        legend.position = "none",plot.title = element_text(family = "serif", #字体
+                                  face = "bold",     #字体加粗
+                                  color = "black",      #字体颜色
+                                  size = 12,          #字体大小
+                                  hjust = 0.5,          #字体左右的位置
+                                  vjust = 0.5,          #字体上下的高度
+                                  angle = 0 ))        #字体倾斜的角度
+
+# 绘制"E-ACC"
+p7 <- ggplot(data=aovE.meanacc,aes(x = as.numeric(factor(E)),y=acc))+
+  geom_point(data = aovE.acc, aes(x = as.numeric(factor(E)), y = acc), color = "black", size = 2) +
+  geom_errorbar(data = aovE.acc, aes(x = as.numeric(factor(E)), ymin = acc - sd, ymax = acc + sd), width = 0.2, color = "black") +
+  geom_smooth(method = "lm", color = "black", linetype = "solid", size = 1, se = TRUE, fill = "#808080", alpha = 0.3) +  # 绘制线性回归趋势线并显示置信区间
+  scale_x_continuous(breaks = c(1, 2, 3, 4, 5, 6),labels = c("√2", "√5", "√8", "√10", "√13", "√18")) +
+  labs(title="E-ACC")+xlab(NULL)+ylab(NULL)+
+  coord_cartesian(ylim = c(0.8,1.09))+scale_y_continuous(breaks = c(0.8, 0.9, 1.0))+
+  theme(panel.grid.major=element_line(colour=NA),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        panel.grid.minor = element_blank(),
+        # axis.title.x=element_text(face="bold", color="black",size=10),#x轴字体
+        # axis.title.y=element_text(face="bold", color="black",size=10),#Y轴字体
+        axis.text.x=element_text(face="bold", color="black",size=10),#x轴刻度
+        axis.text.y=element_text(face="bold", color="black",size=10),#Y轴刻度
+        # axis.line.y=element_line(linetype=1,color="black",size=0.5),#Y轴轴线
+        # axis.line.x=element_line(linetype=1,color="black",size=0.5),#X轴轴线
+        legend.position = "none",plot.title = element_text(family = "serif", #字体
+                                  face = "bold",     #字体加粗
+                                  color = "black",      #字体颜色
+                                  size = 12,          #字体大小
+                                  hjust = 0.5,          #字体左右的位置
+                                  vjust = 0.5,          #字体上下的高度
+                                  angle = 0 ))        #字体倾斜的角度
+
+# 绘制"Diag-ACC"
+p8 <- ggplot(data=aovDiag.meanacc, aes(x = as.numeric(factor(diagdiff)), y=acc)) +
+  geom_point(data = aovDiag.acc, aes(x = as.numeric(factor(diagdiff)), y = acc), color = "black", size = 2) +
+  geom_errorbar(data = aovDiag.acc, aes(x = as.numeric(factor(diagdiff)), ymin = acc - sd, ymax = acc + sd), width = 0.2, color = "black") +
+  geom_smooth(method = "lm", color = "black", linetype = "solid", size = 1, se = TRUE, fill = "#808080", alpha = 0.3) +  # 绘制线性回归趋势线并显示置信区间
+  scale_x_continuous(breaks = c(1,2,3,4,5),labels = c("√2","√4.5","√8","√12.5","√18")) +
+  labs(title="Diag-ACC")+xlab(NULL)+ylab(NULL)+
+  coord_cartesian(ylim = c(0.8,1.09))+scale_y_continuous(breaks = c(0.8, 0.9, 1.0))+
+  theme(panel.grid.major=element_line(colour=NA),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        panel.grid.minor = element_blank(),
+        axis.text.x=element_text(face="bold", color="black",size=10),#x轴刻度
+        axis.text.y=element_text(face="bold", color="black",size=10),#Y轴刻度
+        legend.position = "none",plot.title = element_text(family = "serif", #字体
+                                  face = "bold",     #字体加粗
+                                  color = "black",      #字体颜色
+                                  size = 12,          #字体大小
+                                  hjust = 0.5,          #字体左右的位置
+                                  vjust = 0.5,          #字体上下的高度
+                                  angle = 0 ))        #字体倾斜的角度
+    
+#将p1-p6四幅图组合成一幅图，按照两行两列排列，标签分别为A、B、C、D、E、F，颜色为红色(通过font.label = list()修改)，无法通过label.color = 'red'或其他方式修改。
+# p.hyp1 <- ggpubr::ggarrange(p1, p2, p3, p5, p6,p7, nrow = 2,ncol = 3, labels = c('(a)','(b)','(c)','(d)','(e)','(f) '), font.label = list(color = 'black'))
+# p.hyp1
+p <- p1+p2+p3+p4+p5+p6+p7+p8+plot_layout(widths = c(1,1,2.5,2.5))
+p
+ggsave("E:/3、论文撰写/【表征学习】/数据及代码整理/behavior/wcue.jpg", plot = p, width = 10, height = 4)
+
+```
+
+
+
+
+
+
+
+# 行为学结果，relate to Fig3
+## 计算每个block的准确率
+```{r}
+
+subSR4wCue <- na.omit(subSR4wCue)
+all <- subSR4wCue %>% 
+  mutate(correct==resp)
+aovrun.True=aggregate(all$`correct == resp`==TRUE,by=list(all$blockw,all$sub),FUN=sum) 
+aovrun.False=aggregate(all$`correct == resp`==FALSE,by=list(all$blockw,all$sub),FUN=sum) 
+
+aovrun.mean<-data.frame(block=aovrun.True$Group.1,sub=aovrun.True$Group.2,true=aovrun.True$x,false=aovrun.False$x,acc=aovrun.True$x/(aovrun.True$x+aovrun.False$x))
+aovrun.1=aggregate(aovrun.mean$acc,by=list(aovrun.mean$block),FUN=mean) 
+aovrun.2=aggregate(aovrun.mean$acc,by=list(aovrun.mean$block),FUN=sd) 
+aovrun.acc<-data.frame(block=aovrun.1$Group.1,ACC=aovrun.1$x,sd=aovrun.2$x)
+rm(aovrun.True,aovrun.False,aovrun.1,aovrun.2)
+head(aovrun.acc)
+
+# 绘图
+# jpeg("C:/Users/liuji/Desktop/rbCuenoM.png",width = 400,height = 500)
+# par(family = 'Kai')  # 更改全部绘图字体
+aovrun.mean$block <- as.factor(aovrun.mean$block)
+ggplot(aovrun.mean, aes(x = block, y = acc)) +
+  geom_jitter(width = 0.2, height = 0,color = "gray") + # 绘制散点图
+  geom_point(stat = "summary", fun.y = "mean", color = "black", size = 3) + # 绘制平均值点
+  geom_errorbar(stat = "summary", fun.data = "mean_se", color = "black", width = 0.2) + # 绘制方差线
+  labs( x = "Block number", y = "accuracy [%]") +
+  coord_cartesian(ylim = c(0.7, 1))+
+    theme(panel.grid.major=element_line(colour=NA),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        panel.grid.minor = element_blank(),
+        axis.title.x=element_text(face="bold", color="black",size=18),#x轴字体
+        axis.title.y=element_text(face="bold", color="black",size=18),#Y轴字体
+        axis.text.x=element_text(face="bold", color="black",size=18),#x轴刻度
+        axis.text.y=element_text(face="bold", color="black",size=18),#Y轴刻度
+        
+        legend.position = "right",plot.title = element_text(family = "serif",
+        face = "bold",color = "black",size = 12,hjust = 0.5,vjust = 0.5,angle = 0))
+# dev.off()
+```
+## Fig 3A 线性混合效应模型【rbCue,rel,irrel】
+```{r}
+# 将RESP中不为1的值全部替换为0
+subSR4rbCue$resp[subSR4rbCue$resp != 1] <- 0
+# LMM full model [rbCue]
+subSR4rbCue$zsblock = scale(subSR4rbCue$blockrb)
+GLM_full = lmer(resp ~ rel*irrel*zsblock + (1|sub), data=subSR4rbCue)
+CI=confint(GLM_full)
+summGLMrb <- data.frame(coef(summary(GLM_full)),CI[3:10,])
+anova(GLM_full, test="III")
+
+# jpeg("C:/Users/liuji/Desktop/rbCuenoM.png",width = 400,height = 500)
+# par(family = 'Kai')  # 更改全部绘图字体
+ggplot(data=summGLMrb[c(2,3,5),],aes(x=factor(c("rel","irrel","rel*irrel"),levels=c("rel","irrel","rel*irrel")),y=Estimate,fill=rainbow(3)))+
+  geom_bar(stat="identity",position="dodge",color="#808080",fill="#808080",width = 0.5)+
+  geom_errorbar(aes(ymax=X97.5..,ymin=X2.5..),position=position_dodge(0.9),width=0.15)+
+  ylab("effect on choice[a.u.]")+coord_cartesian(ylim = c(0, 0.25))+xlab(NULL)+
+  theme(panel.grid.major=element_line(colour=NA),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        panel.grid.minor = element_blank(),
+        # axis.title.x=element_text(face="bold", color="black",size=10),#x轴字体
+        axis.title.y=element_text(face="bold", color="black",size=18),#Y轴字体
+        axis.text.x=element_text(face="bold", color="black",size=18),#x轴刻度
+        axis.text.y=element_text(face="bold", color="black",size=18),#Y轴刻度
+        axis.line.y=element_line(linetype=1,color="black",size=1),#Y轴轴线
+        axis.line.x=element_line(linetype=1,color="black",size=1),#X轴轴线
+        legend.position = "none",plot.title = element_text(family = "serif", #字体
+                                  face = "bold",     #字体加粗
+                                  color = "black",      #字体颜色
+                                  size = 12,          #字体大小
+                                  hjust = 0.5,          #字体左右的位置
+                                  vjust = 0.5,          #字体上下的高度
+                                  angle = 0 ))        #字体倾斜的角度
+```
+## Fig 3B 线性混合效应模型【wCue,unitary,diag】
+```{r}
+subSR4wCue$resp[subSR4wCue$resp != 1] <- 0
+# LMM full model
+subSR4wCue$zsblock = scale(subSR4wCue$blockw)
+# GLM_w = lmer(resp ~ diag*rel2*blockw+(1|sub), data=subSR4wCue)
+
+GLM_w = lmer(resp ~ diag*chooseF1big*blockw+(1|sub), data=subSR4wCue)
+CI=confint(GLM_w)
+summGLMw <- data.frame(coef(summary(GLM_w)),CI[3:10,])
+anova(GLM_w, test="III")
+
+# jpeg("C:/Users/liuji/Desktop/rbCuenoM.png",width = 400,height = 500)
+# par(family = 'Kai')  # 更改全部绘图字体
+ggplot(data=summGLMw[c(2,3,5),],aes(x=factor(c("diag","unitary","diag*unitary"),levels=c("diag","unitary","diag*unitary")),y=Estimate,fill=rainbow(3)))+
+  geom_bar(stat="identity",position="dodge",color="#808080",fill="#808080",width = 0.5)+
+  geom_errorbar(aes(ymax=X97.5..,ymin=X2.5..),position=position_dodge(0.9),width=0.15)+
+  ylab("effect on choice[a.u.]")+coord_cartesian(ylim = c(0, 0.25))+xlab(NULL)+
+  theme(panel.grid.major=element_line(colour=NA),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        panel.grid.minor = element_blank(),
+        # axis.title.x=element_text(face="bold", color="black",size=10),#x轴字体
+        axis.title.y=element_text(face="bold", color="black",size=18),#Y轴字体
+        axis.text.x=element_text(face="bold", color="black",size=18),#x轴刻度
+        axis.text.y=element_text(face="bold", color="black",size=18),#Y轴刻度
+        axis.line.y=element_line(linetype=1,color="black",size=1),#Y轴轴线
+        axis.line.x=element_line(linetype=1,color="black",size=1),#X轴轴线
+        legend.position = "none",plot.title = element_text(family = "serif", #字体
+                                  face = "bold",     #字体加粗
+                                  color = "black",      #字体颜色
+                                  size = 12,          #字体大小
+                                  hjust = 0.5,          #字体左右的位置
+                                  vjust = 0.5,          #字体上下的高度
+                                  angle = 0 ))        #字体倾斜的角度
+```
+## Fig 3C 分组线性混合效应模型
+### 调整数据集，分为四种任务类型
+```{r}
+# 判断一致不一致，等级差异在两个维度上一致定为一致，否则为不一致
+# 判断难度，距离差值绝对值大于1为容易，否则为困难
+subSR4rbCue <- subSR4rbCue %>% 
+  mutate(
+    congurent=sign(subSR4rbCue$rel)==sign(subSR4rbCue$irrel),# TRUE表示一致，FALSE表示不一致
+    difficulty = subSR4rbCue$D>1, # TRUE表示容易，FALSE表示难
+    neutral=subSR4rbCue$I>1 # TRUE表示不相关维度差异大，FALSE表示差异小
+  )
+```
+### LMM
+【无关维度相较于相关维度正交化，以控制数据分离后不会导致共线】
+```{r}
+# 简单-一致
+rb_easy_cong <- subSR4rbCue[subSR4rbCue$congurent == TRUE & subSR4rbCue$difficulty == TRUE, ]
+a0 <- rb_easy_cong$rel-mean(rb_easy_cong$rel)
+proj_a0a2 <- (sum(rb_easy_cong$irrel * a0) / sum(a0^2)) * a0
+rb_easy_cong$relorth <- scale(rb_easy_cong$rel)
+rb_easy_cong$irrelorth <- scale(rb_easy_cong$irrel-proj_a0a2)
+rb_easy_cong$zscblockrb <- scale(rb_easy_cong$blockrb)
+
+GLM_rb_easy_cong = lmer(resp ~ relorth*irrelorth*zscblockrb + (1|sub), data=rb_easy_cong)
+CI=confint(GLM_rb_easy_cong)
+summ_e_c <- data.frame(coef(summary(GLM_rb_easy_cong)),CI[3:10,],((CI[3:10,1]-CI[3:10,2])/2))
+anova(GLM_rb_easy_cong, test="III")
+
+
+# 简单+不一致
+rb_easy_incong <- subSR4rbCue[subSR4rbCue$congurent == FALSE & subSR4rbCue$difficulty == TRUE, ]
+a0 <- rb_easy_incong$rel-mean(rb_easy_incong$rel)
+proj_a0a2 <- (sum(rb_easy_incong$irrel * a0) / sum(a0^2)) * a0
+rb_easy_incong$relorth <- scale(rb_easy_incong$rel)
+rb_easy_incong$irrelorth <- scale(rb_easy_incong$irrel-proj_a0a2)
+rb_easy_incong$zscblockrb <- scale(rb_easy_incong$blockrb)
+
+GLM_rb_easy_incong = lmer(resp ~ relorth*irrelorth*zscblockrb + (1|sub), data=rb_easy_incong)
+CI=confint(GLM_rb_easy_incong) 
+summ_e_i <- data.frame(coef(summary(GLM_rb_easy_incong)),CI[3:10,],((CI[3:10,1]-CI[3:10,2])/2))
+anova(GLM_rb_easy_incong, test="III")
+
+# 困难+一致
+rb_hard_cong <- subSR4rbCue[subSR4rbCue$congurent == TRUE & subSR4rbCue$difficulty == FALSE, ]
+a0 <- rb_hard_cong$rel-mean(rb_hard_cong$rel)
+proj_a0a2 <- (sum(rb_hard_cong$irrel * a0) / sum(a0^2)) * a0
+rb_hard_cong$relorth <- scale(rb_hard_cong$rel)
+rb_hard_cong$irrelorth <- scale(rb_hard_cong$irrel-proj_a0a2)
+rb_hard_cong$zscblockrb <- scale(rb_hard_cong$blockrb)
+
+GLM_rb_hard_cong = lmer(resp ~ relorth*irrelorth*zscblockrb + (1|sub), data=rb_hard_cong)
+CI=confint(GLM_rb_hard_cong)
+summ_h_c <- data.frame(coef(summary(GLM_rb_hard_cong)),CI[3:10,],((CI[3:10,1]-CI[3:10,2])/2))
+anova(GLM_rb_hard_cong, test="III")
+
+# 困难+不一致
+rb_hard_incong <- subSR4rbCue[subSR4rbCue$congurent == FALSE & subSR4rbCue$difficulty == FALSE, ]
+a0 <- rb_hard_incong$rel-mean(rb_hard_incong$rel)
+proj_a0a2 <- (sum(rb_hard_incong$irrel * a0) / sum(a0^2)) * a0
+rb_hard_incong$relorth <- scale(rb_hard_incong$rel)
+rb_hard_incong$irrelorth <- scale(rb_hard_incong$irrel-proj_a0a2)
+rb_hard_incong$zscblockrb <- scale(rb_hard_incong$blockrb)
+
+GLM_rb_hard_incong = lmer(resp ~ relorth*irrelorth*zscblockrb + (1|sub), data=rb_hard_incong)
+CI=confint(GLM_rb_hard_incong)
+summ_h_i <- data.frame(coef(summary(GLM_rb_hard_incong)),CI[3:10,],((CI[3:10,1]-CI[3:10,2])/2))
+anova(GLM_rb_hard_incong, test="III")
+```
+#### 开始进行分组计算wCue
+```{r}
+# 简单
+w_easy <- subSR4wCue[subSR4wCue$difficulty == TRUE, ]
+w_hard <- subSR4wCue[subSR4wCue$difficulty == FALSE, ]
+
+a0 <- w_easy$diag1-mean(w_easy$diag1)
+proj_a0a2 <- (sum(w_easy$diag2 * a0) / sum(a0^2)) * a0
+w_easy$diag1orth <- scale(w_easy$diag1)
+w_easy$diag2orth <- scale(w_easy$diag2-proj_a0a2)
+w_easy$zscblockw <- scale(w_easy$blockw)
+
+GLM_w_easy = lmer(resp ~ diag1orth*diag2orth*zscblockw + (1|sub), data=w_easy)
+CI=confint(GLM_w_easy)
+summ_e_c <- data.frame(coef(summary(GLM_w_easy)),CI[3:10,],((CI[3:10,1]-CI[3:10,2])/2))
+anova(GLM_w_easy, test="III")
+
+GLM_w_easy = lmer(resp ~   + (1 |sub), data=w_con, family = binomial(link = "logit"))
+summ_con <- data.frame(coef(summary(GLM_w_con)))
+
+GLM_w_incon = glmer(resp ~ allScore + chooseE + blockw + allScore*chooseE + (1 + allScore + blockw + chooseE+ allScore*chooseE|sub), data=w_incon, family = binomial(link = "logit"))
+summ_incon <- data.frame(coef(summary(GLM_w_incon)))
+
+
+```
+#### 绘制分类图
+```{r}
+jpeg("C:/Users/liuji/Desktop/rbCuenoM.png",width = 600,height = 400)
+par(family = 'Kai')  # 更改全部绘图字体
+# 将rel irrel划到一类别中
+rel_irrel <-rbind(summ_e_c[c(2,3),c(1,6,7,8)],summ_e_i[c(2,3),c(1,6,7,8)],summ_h_c[c(2,3),c(1,6,7,8)],summ_h_i[c(2,3),c(1,6,7,8)])
+type = c("easy_rel","easy_irrel","easy_rel","easy_irrel","hard_rel","hard_irrel","hard_rel","hard_irrel")
+diff = sort(rep(c("easy","hard"),times=4))
+conincon = rep(c("con","con","incon","incon"),times=2)
+rel_irrel <- data.frame(type,diff,conincon,rel_irrel)
+rel_irrel$type <- factor(rel_irrel$type,levels = c("easy_rel","easy_irrel","hard_rel","hard_irrel"))
+
+# 自定义position函数以调整组间距离和组内距离（示例）
+custom_position <- function(width = 0.9) {
+  position <- position_dodge(width = width)
+  position$vjust <- 0.5  # 调整组内距离
+  position$dodge.width <- width  # 调整组间距离
+  return(position)
+}
+
+rel_irrel %>% 
+  group_by(type,conincon) %>% 
+  ggplot(aes(type, Estimate))+
+  # geom_errorbar(aes(ymax=X97.5..,ymin=X2.5..),position=position_dodge(0.9),width=0.15)+
+  geom_col(aes(fill=conincon),position = custom_position(width = 0.9))+   
+  scale_fill_manual(values = c("con" = "lightgreen","incon" = "darkgreen"))+
+  annotate("rect", xmin = 0.5, xmax = 2.5, ymin = -Inf, ymax = Inf, fill = "#A7CCE2",alpha = 0.1) + 
+  annotate("rect", xmin = 2.5, xmax = 4.5, ymin = -Inf, ymax = Inf, fill = "#73B2D7",alpha = 0.2)+
+  theme(panel.grid.major=element_line(colour=NA),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        panel.grid.minor = element_blank(),
+        axis.title.x=element_text(face="bold", color="black",size=14),#x轴字体
+        axis.title.y=element_text(face="bold", color="black",size=14),#Y轴字体
+        axis.text.x=element_text(face="bold", color="black",size=18),#x轴刻度
+        axis.text.y=element_text(face="bold", color="black",size=18),#Y轴刻度
+        legend.position = "right",plot.title = element_text(family = "serif",
+        face = "bold",color = "black",size = 12,hjust = 0.5,vjust = 0.5,angle = 0))
+
+```
+## Fig 3D 分组准确率
+```{r}
+# 判断一致不一致，等级差异在两个维度上一致定为一致，否则为不一致
+# 判断难度，距离差值绝对值大于1为容易，否则为困难
+subSR4rbCue <- subSR4rbCue %>% 
+  mutate(
+    congurent=sign(subSR4rbCue$rel)==sign(subSR4rbCue$irrel),# TRUE表示一致，FALSE表示不一致
+    difficulty = subSR4rbCue$D>1, # TRUE表示容易，FALSE表示难
+    neutral=subSR4rbCue$I>1 # TRUE表示不相关维度差异大，FALSE表示差异小
+  )
+
+all <- subSR4rbCue %>% 
+  mutate(correct==resp)
+
+all$labels <- ""
+all$labels <- ifelse(all$difficulty == "TRUE" & all$congurent=="TRUE", "EasyCon", all$labels)
+all$labels <- ifelse(all$difficulty == "TRUE" & all$congurent=="FALSE", "EasyIncon", all$labels)
+all$labels <- ifelse(all$difficulty == "FALSE" & all$congurent=="TRUE", "HardCon", all$labels)
+all$labels <- ifelse(all$difficulty == "FALSE" & all$congurent=="FALSE", "HardIncon", all$labels)
+
+aovrun1.True=aggregate(all$`correct == resp`==TRUE,by=list(all$labels,all$sub),FUN=sum) 
+aovrun1.False=aggregate(all$`correct == resp`==FALSE,by=list(all$labels,all$sub),FUN=sum) 
+aovrun1.mean<-data.frame(labels=aovrun1.True$Group.1,sub=aovrun1.True$Group.2,true=aovrun1.True$x,false=aovrun1.False$x,acc=aovrun1.True$x/(aovrun1.True$x+aovrun1.False$x))
+aovrun1.1=aggregate(aovrun1.mean$acc,by=list(aovrun1.mean$labels),FUN=mean) 
+aovrun1.2=aggregate(aovrun1.mean$acc,by=list(aovrun1.mean$labels),FUN=sd) 
+aovrun1.acc<-data.frame(labels=aovrun1.1$Group.1,ACC=aovrun1.1$x,sd=aovrun1.2$x)
+rm(aovrun1.True,aovrun1.False,aovrun1.1,aovrun1.2)
+head(aovrun1.acc)
+
+jpeg("C:/Users/liuji/Desktop/rbCuenoM.png",width = 600,height = 400)
+par(family = 'Kai')  # 更改全部绘图字体
+aovrun1.mean$labels <- as.factor(aovrun1.mean$labels)
+ggplot(aovrun1.mean, aes(x = labels, y = acc, fill = labels)) +
+  geom_boxplot() +
+  labs(y = "accuracy [%]") +
+  scale_fill_manual(values = c("EasyCon" = "lightgreen","HardCon" = "lightgreen","EasyIncon" = "darkgreen","HardIncon" = "darkgreen")) +
+      theme(panel.grid.major=element_line(colour=NA),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        panel.grid.minor = element_blank(),
+        axis.title.x=element_text(face="bold", color="black",size=14),#x轴字体
+        axis.title.y=element_text(face="bold", color="black",size=14),#Y轴字体
+        axis.text.x=element_text(face="bold", color="black",size=18),#x轴刻度
+        axis.text.y=element_text(face="bold", color="black",size=18),#Y轴刻度
+        legend.position = "right",plot.title = element_text(family = "serif",
+        face = "bold",color = "black",size = 12,hjust = 0.5,vjust = 0.5,angle = 0)) + annotate("rect", xmin = 0.5, xmax = 2.5, ymin = -Inf, ymax = Inf, fill = "#A7CCE2",alpha = 0.1) + annotate("rect", xmin = 2.5, xmax = 4.5, ymin = -Inf, ymax = Inf, fill = "#73B2D7",alpha = 0.2)
+dev.off()
+```
+## Fig 3E
+```{r}
+all$labels <- ""
+all$labels <- ifelse( all$congurent == "TRUE" , "Con", all$labels)
+all$labels <- ifelse( all$congurent == "FALSE", "Incon", all$labels)
+
+aovrun1.True=aggregate(all$`correct == resp`==TRUE,by=list(all$labels,all$sub),FUN=sum) 
+aovrun1.False=aggregate(all$`correct == resp`==FALSE,by=list(all$labels,all$sub),FUN=sum) 
+aovrun1.mean<-data.frame(labels=aovrun1.True$Group.1,sub=aovrun1.True$Group.2,true=aovrun1.True$x,false=aovrun1.False$x,acc=aovrun1.True$x/(aovrun1.True$x+aovrun1.False$x))
+aovrun1.1=aggregate(aovrun1.mean$acc,by=list(aovrun1.mean$labels),FUN=mean) 
+aovrun1.2=aggregate(aovrun1.mean$acc,by=list(aovrun1.mean$labels),FUN=sd) 
+aovrun1.acc<-data.frame(labels=aovrun1.1$Group.1,ACC=aovrun1.1$x,sd=aovrun1.2$x)
+rm(aovrun1.True,aovrun1.False,aovrun1.1,aovrun1.2)
+head(aovrun1.acc)
+
+jpeg("C:/Users/liuji/Desktop/rbCuenoM.png",width = 400,height = 500)
+par(family = 'Kai')  # 更改全部绘图字体
+aovrun1.mean$labels <- as.factor(aovrun1.mean$labels)
+ggplot(aovrun1.mean, aes(x = labels, y = acc, fill = labels)) +
+  geom_boxplot() +
+  labs(y = "accuracy [%]") +
+  scale_fill_manual(values = c("Con" = "lightgreen","Incon" = "darkgreen")) +
+      theme(panel.grid.major=element_line(colour=NA),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        panel.grid.minor = element_blank(),
+        axis.title.x=element_text(face="bold", color="black",size=14),#x轴字体
+        axis.title.y=element_text(face="bold", color="black",size=14),#Y轴字体
+        axis.text.x=element_text(face="bold", color="black",size=18),#x轴刻度
+        axis.text.y=element_text(face="bold", color="black",size=18),#Y轴刻度
+        legend.position = "right",plot.title = element_text(family = "serif",
+        face = "bold",color = "black",size = 12,hjust = 0.5,vjust = 0.5,angle = 0)) 
+dev.off()
+
+```
+## Fig 3F
+```{r}
+all$labels <- ""
+all$labels <- ifelse( all$difficulty == "TRUE", "Easy", all$labels)
+all$labels <- ifelse( all$difficulty == "FALSE" , "Hard", all$labels)
+
+aovrun1.True=aggregate(all$`correct == resp`==TRUE,by=list(all$labels,all$sub),FUN=sum) 
+aovrun1.False=aggregate(all$`correct == resp`==FALSE,by=list(all$labels,all$sub),FUN=sum) 
+aovrun1.mean<-data.frame(labels=aovrun1.True$Group.1,sub=aovrun1.True$Group.2,true=aovrun1.True$x,false=aovrun1.False$x,acc=aovrun1.True$x/(aovrun1.True$x+aovrun1.False$x))
+aovrun1.1=aggregate(aovrun1.mean$acc,by=list(aovrun1.mean$labels),FUN=mean) 
+aovrun1.2=aggregate(aovrun1.mean$acc,by=list(aovrun1.mean$labels),FUN=sd) 
+aovrun1.acc<-data.frame(labels=aovrun1.1$Group.1,ACC=aovrun1.1$x,sd=aovrun1.2$x)
+rm(aovrun1.True,aovrun1.False,aovrun1.1,aovrun1.2)
+head(aovrun1.acc)
+
+jpeg("C:/Users/liuji/Desktop/rbCuenoM.png",width = 400,height = 500)
+par(family = 'Kai')  # 更改全部绘图字体
+aovrun1.mean$labels <- as.factor(aovrun1.mean$labels)
+ggplot(aovrun1.mean, aes(x = labels, y = acc, fill = labels)) +
+  geom_boxplot() +coord_cartesian(ylim = c(0.6, 1))+
+  labs(y = "accuracy [%]") +
+  scale_fill_manual(values = c("Easy" = "lightgreen","Hard" = "darkgreen")) +
+      theme(panel.grid.major=element_line(colour=NA),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        panel.grid.minor = element_blank(),
+        axis.title.x=element_text(face="bold", color="black",size=14),#x轴字体
+        axis.title.y=element_text(face="bold", color="black",size=14),#Y轴字体
+        axis.text.x=element_text(face="bold", color="black",size=18),#x轴刻度
+        axis.text.y=element_text(face="bold", color="black",size=18),#Y轴刻度
+        legend.position = "right",plot.title = element_text(family = "serif",
+        face = "bold",color = "black",size = 12,hjust = 0.5,vjust = 0.5,angle = 0)) 
+dev.off()
+
+```
+## Fig 3G
+```{r}
+all$labels <- ""
+all$labels <- ifelse( all$congurent == "TRUE" & all$neutral=="TRUE", "Con", all$labels)
+all$labels <- ifelse( all$congurent == "FALSE" & all$neutral=="TRUE", "Incon", all$labels)
+all$labels <- ifelse( all$neutral=="FALSE", "Neutral", all$labels)
+
+aovrun1.True=aggregate(all$`correct == resp`==TRUE,by=list(all$labels,all$sub),FUN=sum) 
+aovrun1.False=aggregate(all$`correct == resp`==FALSE,by=list(all$labels,all$sub),FUN=sum) 
+aovrun1.mean<-data.frame(labels=aovrun1.True$Group.1,sub=aovrun1.True$Group.2,true=aovrun1.True$x,false=aovrun1.False$x,acc=aovrun1.True$x/(aovrun1.True$x+aovrun1.False$x))
+aovrun1.1=aggregate(aovrun1.mean$acc,by=list(aovrun1.mean$labels),FUN=mean) 
+aovrun1.2=aggregate(aovrun1.mean$acc,by=list(aovrun1.mean$labels),FUN=sd) 
+aovrun1.acc<-data.frame(labels=aovrun1.1$Group.1,ACC=aovrun1.1$x,sd=aovrun1.2$x)
+rm(aovrun1.True,aovrun1.False,aovrun1.1,aovrun1.2)
+head(aovrun1.acc)
+
+jpeg("C:/Users/liuji/Desktop/rbCuenoM.png",width = 400,height = 500)
+par(family = 'Kai')  # 更改全部绘图字体
+aovrun1.mean$labels <- as.factor(aovrun1.mean$labels)
+ggplot(aovrun1.mean, aes(x = labels, y = acc, fill = labels)) +
+  geom_boxplot() +coord_cartesian(ylim = c(0.6, 1)) +
+  labs(y = "accuracy [%]") +
+  scale_fill_manual(values = c("Con" = "lightgreen","Incon" = "darkgreen","Neutral"="red")) + 
+      theme(panel.grid.major=element_line(colour=NA),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        panel.grid.minor = element_blank(),
+        axis.title.x=element_text(face="bold", color="black",size=14),#x轴字体
+        axis.title.y=element_text(face="bold", color="black",size=14),#Y轴字体
+        axis.text.x=element_text(face="bold", color="black",size=18),#x轴刻度
+        axis.text.y=element_text(face="bold", color="black",size=18),#Y轴刻度
+        legend.position = "right",plot.title = element_text(family = "serif",
+        face = "bold",color = "black",size = 12,hjust = 0.5,vjust = 0.5,angle = 0)) 
+dev.off()
+
+```
+## 计算Wilcox系数
+```{r}
+# 选择A组和B组的数据
+group_A <- aovrun1.mean[aovrun1.mean$labels == "Con", "acc"]
+group_B <- aovrun1.mean[aovrun1.mean$labels == "Incon", "acc"]
+group_C <- aovrun1.mean[aovrun1.mean$labels == "HardCon", "acc"]
+group_D <- aovrun1.mean[aovrun1.mean$labels == "HardIncon", "acc"]
+
+wilcox.test(group_C-group_D)
+# t.test(group_B,group_C)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# 影像学结果，relate to Fig8
+## rbCue
+###批量导入数据,残差计算为平均值
+```{r}
+BMS.D <- read.csv("E:/3、论文撰写/表征学习/数据及代码整理/BMS/RAW/rbCue_D.csv",header = TRUE,sep = ",")
+BMS.D <- BMS.D[,-1]
+BMS.I <- read.csv("E:/3、论文撰写/表征学习/数据及代码整理/BMS/RAW/rbCue_I.csv",header = TRUE,sep = ",")
+BMS.I <- BMS.I[,-1]
+BMS.E <- read.csv("E:/3、论文撰写/表征学习/数据及代码整理/BMS/RAW/rbCue_E.csv",header = TRUE,sep = ",")
+BMS.E <- BMS.E[,-1]
+BMS.diag <- read.csv("E:/3、论文撰写/表征学习/数据及代码整理/BMS/RAW/rbCue_diag.csv",header = TRUE,sep = ",")
+BMS.diag <- BMS.diag[,-1]
+# 对每个被试的4个model——D E diag I，计算LL结果 LL=-n(log根号2Πσ2+0.5)
+# n 表示扫描总数，希格玛方表示残差的方差
+BMS <- rbind(BMS.D,BMS.I,BMS.diag,BMS.E)
+rm(BMS.D,BMS.I,BMS.diag,BMS.E)
+del <- which(BMS$roi== "M1l")
+BMS <- BMS[-del,]
+del <- which(BMS$roi== "M1r")
+BMS <- BMS[-del,]
+BMS[,c(4,5)] <- as.numeric(unlist(BMS[,c(4,5)]))
+BMS <- data.frame(BMS,LL=-(BMS$TR*(log(sqrt(2*pi*BMS$var))+0.5)))
+
+```
+### 运行BMS【rbCue】
+```{r}
+# 使用目标矩阵生成一个N*k的矩阵，N表示N个被试，K表示k个模型
+BMS.LL <- BMS %>%
+  dplyr::select(id,roi,LL,model) %>% 
+  pivot_wider(names_from = model,values_from = LL)
+BMS.LL <-BMS.LL[,-1]
+
+BMS.model <- BMS.LL %>%
+  group_by(roi) %>%
+  nest() %>%
+  mutate(
+    fit = nest(data.frame(VB_bms(as.matrix(do.call(rbind,data)))))
+  )
+
+# 解包并保存数据
+BMS.result <- BMS.model$fit[1] %>%
+  unnest() %>% 
+  mutate(
+    roi=sort(rep(c("Amy_L","Amy_R","EC_L","EC_R","HC_L","HC_R","mPFC"),times=4)),
+    type=rep(c("D","I","diag","E"),times=7)
+  )
+
+```
+## wCue
+###批量导入数据
+```{r}
+BMS.D1 <- read.csv("E:/3、论文撰写/表征学习/数据及代码整理/BMS/RAW/wCue_D1.csv",header = TRUE,sep = ",")
+BMS.D1 <- BMS.D1[,-1]
+BMS.D2 <- read.csv("E:/3、论文撰写/表征学习/数据及代码整理/BMS/RAW/wCue_D2.csv",header = TRUE,sep = ",")
+BMS.D2 <- BMS.D2[,-1]
+BMS.E <- read.csv("E:/3、论文撰写/表征学习/数据及代码整理/BMS/RAW/wCue_E.csv",header = TRUE,sep = ",")
+BMS.E <- BMS.E[,-1]
+BMS.diag <- read.csv("E:/3、论文撰写/表征学习/数据及代码整理/BMS/RAW/wCue_diag.csv",header = TRUE,sep = ",")
+BMS.diag <- BMS.diag[,-1]
+# 对每个被试的4个model——D E diag I，计算LL结果 LL=-n(log根号2Πσ2+0.5)
+# n 表示扫描总数，希格玛方表示残差的方差
+BMS <- rbind(BMS.D1,BMS.D2,BMS.diag,BMS.E)
+rm(BMS.D1,BMS.D2,BMS.diag,BMS.E)
+del <- which(BMS$roi== "M1l")
+BMS <- BMS[-del,]
+del <- which(BMS$roi== "M1r")
+BMS <- BMS[-del,]
+BMS[,c(4,5)] <- as.numeric(unlist(BMS[,c(4,5)]))
+BMS <- data.frame(BMS,LL=-(BMS$TR*(log(sqrt(2*pi*BMS$var))+0.5)))
+
+```
+### 运行BMS【wCue】
+```{r}
+# 使用目标矩阵生成一个N*k的矩阵，N表示N个被试，K表示k个模型
+BMS.LL <- BMS %>%
+  dplyr::select(id,roi,LL,model) %>% 
+  pivot_wider(names_from = model,values_from = LL)
+BMS.LL <-BMS.LL[,-1]
+
+BMS.model <- BMS.LL %>%
+  group_by(roi) %>%
+  nest() %>%
+  mutate(
+    fit = nest(data.frame(VB_bms(as.matrix(do.call(rbind,data)))))
+  )
+
+# 解包并保存数据
+BMS.result <- BMS.model$fit[1] %>%
+  unnest() %>% 
+  mutate(
+    roi=sort(rep(c("Amy_L","Amy_R","EC_L","EC_R","HC_L","HC_R","mPFC"),times=4)),
+    type=rep(c("D1","D2","diag","E"),times=7)
+  )
+
+```
+
+## BMS的结果绘制
+```{r}
+jpeg("E:/3、论文撰写/表征学习/数据及代码整理/BMS/wCuediag.png",width = 800,height = 400)
+par(family = 'Kai')  # 更改全部绘图字体
+barplot(height=matrix(BMS.result$xp, ncol = 7, nrow = 4), # 柱子的高度
+        names.arg = c("Amy_L","Amy_R","EC_L","EC_R","HC_L","HC_R","mPFC"), # 柱子的名称
+        col = c('red','white','blue','yellow'),# 柱子的填充颜色
+        border = par("fg"),  # 柱子的轮廓颜色
+        main = 'wCue贝叶斯模型选择',         # 柱状图主标题
+        xlab = 'ROI',         # X轴标签
+        ylab = 'Exceedance probabilities',         # Y轴标签
+        xlim = NULL,         # X轴取值范围
+        ylim = c(0,1),         # Y轴取值范围
+        horiz = FALSE,       # 柱子是否为水平
+        legend.text = c('D1','D2','diag','E'),  # 图例文本
+        beside = TRUE,      # 柱子是否为平行放置
+       )
+
+# dev.off()
+
+```
+
+
+
+
+# 影像学结果，relate to Fig9
+## Fig5B [IPL_L]
+###F1——rel,irrel
+```{r}
+timeCourse=read.csv('E:/3、论文撰写/【表征学习】/数据及代码整理/data/timeCourse/rbCue.F1F2relirrel.tent.csv')
+timeCourse = timeCourse[-1]
+# F2中的DI
+F1.roi <- timeCourse %>% 
+  filter(roi %in% "F1rel_IPLl",class %in% "F1")
+# 增加一列为横坐标，从-2到16 共9个时间点
+F1.roi$time=rep(seq(-2,16,by=2),times=24*3)
+F1.roi$group=rep(c(rep('raw', 10), rep('rel', 10), rep('irrel', 10)),times=24)
+# 删除raw分类
+F1.roi <- subset(F1.roi, group %in% c('rel','irrel'))
+F1.roi$group <- factor(F1.roi$group,levels= c('rel','irrel'))
+
+# 按照分组画图
+p1 <- ggplot(data = F1.roi,aes(x = time,y = beta,fill = group,color=group))
+p1 + geom_smooth(alpha=0.15) + scale_x_continuous(breaks = unique(F1.roi$time)) +
+labs(title="F1.relirrel F1rel_IPLl")+
+scale_color_manual(values = c('red', 'blue')) + 
+scale_fill_manual(values = c('red', 'blue')) +  
+geom_hline(yintercept = 0,linetype = "solid",color = "black") +
+geom_vline(xintercept = 0, linetype = "dashed", color = "black",size = 0.8) +
+theme(panel.grid.major=element_line(colour=NA),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        panel.grid.minor = element_blank(),
+        axis.text.x=element_text(face="bold", color="black",size=18),#x轴刻度
+        axis.text.y=element_text(face="bold", color="black",size=18),#Y轴刻度
+        legend.position = "none",plot.title = element_text(family = "serif",
+        face = "bold",color = "black",size = 12,hjust = 0.5,vjust = 0.5,angle = 0))
+```
+###F2——D,I 
+```{r}
+F2.roi <- timeCourse %>% 
+  filter(roi %in% "D_IPLl",class %in% "F2")
+# 增加一列为横坐标，从-2到16 共9个时间点
+F2.roi$time=rep(seq(-2,16,by=2),times=24*5)
+F2.roi$group=rep(c(rep('raw', 10), rep('rel', 10), rep('irrel', 10),rep('D', 10),rep('I', 10)),times=24)
+F2.roi1 <- subset(F2.roi, group %in% c('D','I'))
+F2.roi1$group <- factor(F2.roi1$group,levels= c('D','I'))
+
+p2 <- ggplot(data = F2.roi1,aes(x = time,y = beta,fill = group,color=group))
+p2 + geom_smooth(alpha=0.15) + scale_x_continuous(breaks = unique(F2.roi1$time)) +
+labs(title="F2.DI D_IPLl")+
+scale_color_manual(values = c('red', 'blue')) + 
+scale_fill_manual(values = c('red', 'blue')) +  
+geom_hline(yintercept = 0,linetype = "solid",color = "black",size =0.5) +
+geom_vline(xintercept = 0, linetype = "dashed", color = "black",size =1) +
+theme(panel.grid.major=element_line(colour=NA),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        panel.grid.minor = element_blank(),
+        axis.text.x=element_text(face="bold", color="black",size=18),#x轴刻度
+        axis.text.y=element_text(face="bold", color="black",size=18),#Y轴刻度
+        legend.position = "right",plot.title = element_text(family = "serif",
+        face = "bold",color = "black",size = 12,hjust = 0.5,vjust = 0.5,angle = 0))
+```
+## Fig5E [Insula_R]
+###F2——D,I
+```{r}
+timeCourse1=read.csv('E:/3、论文撰写/表征学习/数据及代码整理/timeCourse/rbCue.F1F2relirrel.tent.csv')
+timeCourse1 = timeCourse1[-1]
+# F2中的DI
+F2.roi <- timeCourse1 %>% 
+  filter(roi %in% "D_insular",class %in% "F2")
+# 增加一列为横坐标，从-2到16 共9个时间点
+F2.roi$time=rep(seq(-2,16,by=2),times=24*5)
+F2.roi$group=rep(c(rep('raw', 10), rep('rel', 10), rep('irrel', 10),rep('D', 10),rep('I', 10)),times=24)
+F2.roi1 <- subset(F2.roi, group %in% c('D','I'))
+F2.roi1$group <- factor(F2.roi1$group,levels= c('D','I'))
+
+p1 <- ggplot(data = F2.roi1,aes(x = time,y = beta,fill = group,color=group))
+p1 + geom_smooth(alpha=0.15) + scale_x_continuous(breaks = unique(F2.roi1$time)) +
+labs(title="F2.DI D_insular")+
+scale_color_manual(values = c('red', 'blue')) + 
+scale_fill_manual(values = c('red', 'blue')) +  
+geom_hline(yintercept = 0,linetype = "solid",color = "black") +
+geom_vline(xintercept = 0, linetype = "dashed", color = "black") +
+theme(panel.grid.major=element_line(colour=NA),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        panel.grid.minor = element_blank(),
+        axis.text.x=element_text(face="bold", color="black",size=18),#x轴刻度
+        axis.text.y=element_text(face="bold", color="black",size=18),#Y轴刻度
+        legend.position = "right",plot.title = element_text(family = "serif",
+        face = "bold",color = "black",size = 12,hjust = 0.5,vjust = 0.5,angle = 0))
+```
+###rel——choose,unchoose
+```{r}
+timeCourse2=read.csv('E:/3、论文撰写/【表征学习】/数据及代码整理/data/timeCourse/rbCue.choose.tent.csv')
+timeCourse2 = timeCourse2[-1]
+
+# 筛选看到F1之后，不相关等级引起的激活区域中的F1的相关不相关等级的影响
+ch.roi <- timeCourse2 %>% 
+  filter(roi %in% "D_insular",class %in% "ch")
+# 增加一列为横坐标，从-2到16 共9个时间点
+ch.roi$time=rep(seq(-2,16,by=2),times=72)
+ch.roi$group=rep(c(rep('raw', 10), rep('rel', 10), rep('irrel', 10)),times=24)
+# 删除raw分类
+ch.roi <- subset(ch.roi, group %in% c('rel','irrel'))
+ch.roi$group <- factor(ch.roi$group,levels= c('rel','irrel'))
+
+
+un.roi <- timeCourse2 %>% 
+  filter(roi %in% "D_insular",class %in% "un")
+# 增加一列为横坐标，从-2到16 共9个时间点
+un.roi$time=rep(seq(-2,16,by=2),times=72)
+un.roi$group=rep(c( rep('raw', 10),rep('rel', 10), rep('irrel', 10)),times=24)
+# 
+
+# 删除raw分类
+un.roi <- subset(un.roi, group %in% c('rel','irrel'))
+un.roi$group <- factor(un.roi$group,levels= c('rel','irrel'))
+choose.roi <- rbind(subset(ch.roi, group %in% c('rel')),subset(un.roi, group %in% c('rel')))
+
+# 按照分组画图
+p2 <- ggplot(data = choose.roi,aes(x = time,y = beta,fill = class,color=class))
+p2 + geom_smooth(alpha=0.15) + scale_x_continuous(breaks = unique(choose.roi$time)) +
+labs(title="unchosen character D_insular")+
+scale_color_manual(values = c('Coral', 'DarkRed')) + 
+scale_fill_manual(values = c('Coral', 'DarkRed')) +  
+geom_hline(yintercept = 0,linetype = "solid",color = "black") +
+geom_vline(xintercept = 0, linetype = "dashed", color = "black") +
+theme(panel.grid.major=element_line(colour=NA),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        panel.grid.minor = element_blank(),
+        axis.text.x=element_text(face="bold", color="black",size=18),#x轴刻度
+        axis.text.y=element_text(face="bold", color="black",size=18),#Y轴刻度
+        legend.position = "none",plot.title = element_text(family = "serif",
+        face = "bold",color = "black",size = 12,hjust = 0.5,vjust = 0.5,angle = 0))
+
+# Coral	珊瑚	#FF7F50	255,127,80
+# DarkRed	深红色	#8B0000	139,0,0
+
+
+```
+## Fig5I [precuneus]
+### irrel——easy,hard
+```{r}
+timeCourse2=read.csv('E:/3、论文撰写/【表征学习】/数据及代码整理/timeCourse/rbCue.easyhard.tent.csv')
+timeCourse2 = timeCourse2[-1]
+F2.roi1 <- timeCourse2 %>% 
+  filter(roi %in% "chirrel_precuences",class %in% "F2.easy")
+F2.roi1$time=rep(seq(-2,16,by=2),times=96)
+F2.roi1$group=rep(c(rep('raw', 10), rep('rel', 10), rep('irrel', 10),rep('easyI', 10)),times=24)
+# 删除raw分类
+F2.easyI <- subset(F2.roi1, group %in% 'easyI')
+
+F2.roi2 <- timeCourse2 %>% 
+  filter(roi %in% "chirrel_precuences",class %in% "F2.hard")
+# 增加一列为横坐标，从-2到16 共9个时间点
+F2.roi2$time=rep(seq(-2,16,by=2),times=96)
+F2.roi2$group=rep(c(rep('raw', 10), rep('rel', 10), rep('irrel', 10),rep('hardI', 10)),times=24)
+F2.I <- rbind(F2.easyI,subset(F2.roi2, group %in% 'hardI'))
+
+# 按照分组画图
+p2 <- ggplot(data = F2.I,aes(x = time,y = beta,fill = group,color=group))
+p2 + geom_smooth(alpha=0.15) + scale_x_continuous(breaks = unique(F2.I$time)) +
+labs(title="irrelevant I in chirrel_precuences")+
+scale_color_manual(values = c('lightblue', 'darkblue')) + 
+scale_fill_manual(values = c('lightblue', 'darkblue')) +  
+geom_hline(yintercept = 0,linetype = "solid",color = "black") +
+geom_vline(xintercept = 0, linetype = "dashed", color = "black") +
+theme(panel.grid.major=element_line(colour=NA),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        panel.grid.minor = element_blank(),
+        axis.text.x=element_text(face="bold", color="black",size=18),#x轴刻度
+        axis.text.y=element_text(face="bold", color="black",size=18),#Y轴刻度
+        legend.position = "right",plot.title = element_text(family = "serif",
+        face = "bold",color = "black",size = 12,hjust = 0.5,vjust = 0.5,angle = 0))
+
+# LightBLue	淡蓝	#ADD8E6	173,216,230
+# DarkBlue	深蓝色	#00008B	0,0,139
+
+
+```
+
+
+## 筛选出要分析的ROI并按照被试画图 
+```{r}
+# 进行wilcoxon检验  计算W和p 
+# 选择A组和B组的数据
+# 计算曲线时间点上的峰值点
+mean_tiCo=aggregate(F2.roi1$beta,by=list(F2.roi1$group,F2.roi1$time),FUN=mean) 
+names(mean_tiCo) <- c("group", "time", "mean_beta")
+group_A <- mean_tiCo[mean_tiCo$group == "D",]
+group_B <- mean_tiCo[mean_tiCo$group == "I",]
+
+# 找到 group_A 和 group_B 的峰值时间点
+peak_time_A <- group_A$time[which.max(abs(group_A$mean_beta))]
+peak_time_B <- group_B$time[which.max(abs(group_B$mean_beta))]
+
+# 在 F1.roi 中提取对应的峰值时间点的所有人的值
+peak_values_A <- F2.roi1[F2.roi1$group == "D" & F2.roi1$time == peak_time_A, ]
+peak_values_B <- F2.roi1[F2.roi1$group == "I" & F2.roi1$time == peak_time_B, ]
+
+
+wilcox.test(peak_values_A$beta)
+wilcox.test(peak_values_B$beta)
+
+```
+
+## pearson 相关性
+### 行为效应[behavior effect,rbCue]
+```{r}
+subSR4rbCue<- read.csv("E:/3、论文撰写/【表征学习】/数据及代码整理/behavior/subSR4rbCue.csv")
+subSR4rbCue <- na.omit(subSR4rbCue)
+# 将RESP中不为1的值全部替换为0 【先前结果】
+subSR4rbCue$resp[subSR4rbCue$resp != 1] <- 0
+
+subSR4rbCue.contrast <- subSR4rbCue %>%
+  group_by(sub) %>%
+  nest() %>%
+  mutate(
+    fit = map(data, ~ glm(resp ~ rel + irrel +blockrb + rel*irrel*blockrb, data =.x)), 
+    tidied = map(fit, tidy) 
+  )
+# 解包
+subSR4rbCue.summary <- subSR4rbCue.contrast %>%
+  unnest(tidied) %>% 
+  dplyr::select(sub, term, estimate,statistic, p.value) %>%
+  filter(term %in% c('rel','irrel'))
+```
+### 行为效应[behavior effect,wCue]
+```{r}
+subSR4wCue<- read.csv("E:/3、论文撰写/【表征学习】/数据及代码整理/behavior/subSR4wCue.csv")
+subSR4wCue$resp[subSR4wCue$resp != 1] <- 0
+
+subSR4wCue.contrast <- subSR4wCue %>%
+  group_by(sub) %>%
+  nest() %>%
+  mutate(
+    fit = map(data, ~ glm(resp ~ diag + blockw + diag*blockw, data =.x)), 
+    tidied = map(fit, tidy) 
+  )
+
+# 解包
+subSR4wCue.summary <- subSR4wCue.contrast %>%
+  unnest(tidied) %>% 
+  dplyr::select(sub, term, estimate,statistic, p.value) %>%
+  filter(term %in% c('diag'))
+
+
+
+```
+### Fig5C 5F 5J 5M 
+```{r}
+subBeta=read.csv("E:/3、论文撰写/【表征学习】/数据及代码整理/timeCourse/rbCue.subBeta.csv")
+#insular
+fMRI_Beta.roi1 <- subBeta %>% 
+  filter(roi %in% "chirrel_precuences",face %in% "F2",type %in% "D")
+behavior_Beta.roi1 <- subSR4rbCue.summary %>% 
+  filter(term %in% "rel")
+corData1=data.frame(fMRI_beta=scale(fMRI_Beta.roi1$beta),behavior_beta=scale(behavior_Beta.roi1$estimate))
+
+
+fMRI_Beta.roi2 <- subBeta %>% 
+  filter(roi %in% "chirrel_precuences",face %in% "F2",type %in% "I")
+behavior_Beta.roi2 <- subSR4rbCue.summary %>% 
+  filter(term %in% "irrel")
+corData2=data.frame(fMRI_beta=scale(fMRI_Beta.roi2$beta),behavior_beta=scale(behavior_Beta.roi2$estimate))
+
+P1 <- ggscatter(corData1, x = "fMRI_beta", y = "behavior_beta",main="chirrel_precuences",xlab = "BOLD effect size [a.u.]", ylab = "behavioural effect size [a.u.]",color = "red",
+          add = "reg.line", conf.int = TRUE,    
+          add.params = list(fill = "lightgray"))+
+  stat_cor(method = "pearson",label.x.npc = "middle", label.y = 2)+
+  theme(panel.grid.major=element_line(colour=NA),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        panel.grid.minor = element_blank(),
+        axis.text.x=element_text(face="bold", color="black",size=18),#x轴刻度
+        axis.text.y=element_text(face="bold", color="black",size=18),#Y轴刻度
+        legend.position = "right",plot.title = element_text(family = "serif",
+        face = "bold",color = "black",size = 12,hjust = 0.5,vjust = 0.5,angle = 0))
+
+P2 <- ggscatter(corData2, x = "fMRI_beta", y = "behavior_beta",main="chirrel_precuences",xlab = "BOLD effect size [a.u.]", ylab = "behavioural effect size [a.u.]",color = "blue",
+          add = "reg.line", conf.int = TRUE,    
+          add.params = list(fill = "lightgray"))+
+  stat_cor(method = "pearson",label.x.npc = "left", label.y = 2)+
+  theme(panel.grid.major=element_line(colour=NA),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        panel.grid.minor = element_blank(),
+        axis.text.x=element_text(face="bold", color="black",size=18),#x轴刻度
+        axis.text.y=element_text(face="bold", color="black",size=18),#Y轴刻度
+        legend.position = "right",plot.title = element_text(family = "serif",
+        face = "bold",color = "black",size = 12,hjust = 0.5,vjust = 0.5,angle = 0))
+
+P1+P2
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# 训练阶段结果，relate to FigS1 
+## Fig2a:每个block中32个选择的正确率
+```{r}
+# 绘制带数据点的箱线图
+ACC = read.csv("E:/3、论文撰写/【表征学习】/数据及代码整理/behavior/learn_block_ACC.csv")
+# 删除准确率为0的行
+ACC$block = as.factor(ACC$block)
+ACC$run = as.factor(ACC$run)
+
+p <- ggplot(ACC, aes(x = block, y = ACC, fill = run)) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.6) +  # 绘制箱线图，不显示异常值
+  geom_jitter(aes(color = run), width = 0.2, size = 1.5, alpha = 0.6) +  # 添加抖动点
+  geom_smooth(method = "lm", se = TRUE, aes(group = run, color = run)) +
+    scale_y_continuous(breaks = c(0, 0.25, 0.5, 0.75, 1),  # 自定义y轴刻度
+                     labels = c("0.00", "0.25", "0.50", "0.75", "1.00")) +
+  labs(title = "Boxplot of speed by block",
+       x = "block",
+       y = "ACC") +
+  theme_minimal() +
+  theme(
+    # axis.text.x = element_text(angle = 45, hjust = 1),# 旋转x轴标签以避免重叠
+    panel.grid.major = element_blank(),  # 删除主网格线
+    panel.grid.minor = element_blank(),   # 删除次网格线
+    axis.text = element_text(size = 15, face = "bold",color = "black"),  # 加粗坐标轴数字
+    axis.line = element_line(size = 0.5, color = "black")  # 添加坐标轴线
+  )  
+
+# ggsave("E:/3、论文撰写/表征学习/数据及代码整理/behavior/block_ACC.jpg", plot = p, width = 15, height = 4)
+```
+### Fig2a统计:组间t检验(三个run之间的t检验结果)
+```{r}
+results <- ACC %>%
+  group_by(run) %>%
+  summarise(acc = list(ACC)) %>%
+  ungroup() %>%
+  mutate(pair = list(combn(run, 2, simplify = FALSE))) %>%
+  unnest(pair) %>%
+  mutate(t_test = map(pair, ~{
+    group1 <- ACC$ACC[ACC$run == .x[1]]
+    group2 <- ACC$ACC[ACC$run == .x[2]]
+    t.test(group1, group2)
+  })) %>%
+  transmute(group1 = map_chr(pair, 1),
+            group2 = map_chr(pair, 2),
+            p_value = map_dbl(t_test, "p.value"),
+            t_value = map_dbl(t_test, "statistic"),
+            df = map_dbl(t_test, "parameter"),
+            conf_int = map(t_test, "conf.int"))
+```
+### Fig2a统计:比较沿着block变化的斜率（按照run分组计算）
+```{r}
+ACC$block <- as.numeric(ACC$block)
+ACC$id <- as.factor(ACC$id)
+
+results <- list()
+for (r in unique(ACC$run)) {
+  data_subset <- subset(ACC, run == r)
+  model <- lmer(ACC ~ block + (1 | id), data = data_subset)
+  results[[as.character(r)]] <- summary(model)
+}
+# 提取并打印每个run的估计值和p值
+for (r in names(results)) {
+  model_summary <- results[[r]]
+  estimate <- model_summary$coefficients["block", "Estimate"]
+  p_value <- model_summary$coefficients["block", "Pr(>|t|)"]
+  std <- model_summary$coefficients["block", "Std. Error"]
+  cat("Run:", r, "\n")
+  cat("Estimate for block:", estimate, "\n")
+  cat("Std for block:", std, "\n")
+  cat("p-value for block:", p_value, "\n\n")
+}
+
+```
+
+
+
+
+## Fig2b左面板:将面孔的平均学习速度可视化[run1阶段,热图]
+```{r}
+speed = read.csv(file="E:/3、论文撰写/【表征学习】/数据及代码整理/behavior/learn_face_speed.csv")
+# 绘制带数据点的箱线图
+speed$face = as.factor(speed$face)
+speed$FaceCue = as.factor(speed$FaceCue)
+speed$cue = as.factor(speed$cue)
+speed$run = as.factor(speed$run)
+
+# 其中第一个run的结果，并按照面孔被学习速度的快慢画图
+d1 <- speed %>%
+  filter(run %in% c(1))
+means <- d1 %>%
+  group_by(face) %>%
+  summarise(mean_speed = median(speed, na.rm = TRUE)) %>%
+  arrange(face)  # 按中值升序排列
+grid_data <- data.frame(
+  face = means$face,
+  x = rep(seq(-1, 1, length.out = 4), times = 4),
+  y = rep(seq(-1, 1, length.out = 4), each = 4),
+  mean_speed = means$mean_speed
+)
+
+p <-  ggplot(grid_data, aes(x = x, y = y, fill = mean_speed)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = face), color = "black", size = 8) +  # 显示标签
+  scale_fill_gradient(low = "red", high = "blue") +
+  labs(title = "Heatmap of Mean Learning Speed by Face", x = "X", y = "Y") +
+  theme_minimal() +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.text = element_text(size = 15, face = "bold", color = "black"),
+    axis.title = element_text(size = 15, face = "bold", color = "black"),
+    axis.line = element_line(size = 0.5, color = "black")
+  )
+
+# ggsave("E:/3、论文撰写/表征学习/数据及代码整理/behavior/face_speed_run1.jpg", plot = p, width = 8, height = 6)
+```
+## Fig2b右面板:将所有面孔分为四分类，统计上验证热图差异  
+```{r}
+Rank_consistency <- subset(d1,face %in% c(13,10,7,4))
+Morality_excellent <- subset(d1,face %in% c(13,9,5,1))
+Competence_excellent <- subset(d1,face %in% c(13,14,15,16))
+others <- subset(d1,face %in% c(11,12,2,6,3,8))
+
+# 合并数据并添加组标签
+Rank_consistency$group <- "Rank_consistent"
+Morality_excellent$group <- "Morality_excellent"
+Competence_excellent$group <- "Competence_excellent"
+others$group <- "others"
+
+data <- rbind(Rank_consistency, Morality_excellent, Competence_excellent, others)
+data$group <- factor(data$group, levels = c('Rank_consistent','Competence_excellent','Morality_excellent','others'))
+
+
+# 按组按被试计算speed的平均值
+data_mean=aggregate(data$speed,by=list(data$id,data$group),FUN=mean)
+colnames(data_mean)=c("is","group","speed")
+
+
+# 绘制箱线图
+p <- ggplot(data_mean, aes(x = group, y = speed)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(position = position_jitter(0.2), alpha = 0.6) +
+  theme_minimal() +  
+  ylab("Speed")+
+  theme(
+    axis.text.x = element_text(angle = 10, hjust = 0.5,vjust = 0.5),# 旋转x轴标签以避免重叠
+    panel.grid.major = element_blank(),  # 删除主网格线
+    panel.grid.minor = element_blank(),   # 删除次网格线
+    axis.text = element_text(size = 15, face = "bold",color = "black"),  # 加粗坐标轴数字
+    axis.line = element_line(size = 0.5, color = "black")  # 添加坐标轴线
+  )  
+
+comparisons <- list(
+  c("Rank_consistent", "Competence_excellent"),
+  c("Competence_excellent", "Morality_excellent"),
+  c("Rank_consistent", "Morality_excellent"),
+  c("Morality_excellent", "others"),
+  c("Competence_excellent", "others"),
+  c("Rank_consistent", "others")
+)
+
+
+# # 计算成对的t检验，并提取t值和p值
+pairwise_tests <- map(comparisons, function(pair) {
+  group1 <- data_mean %>% filter(group == pair[1]) %>% pull(speed)
+  group2 <- data_mean %>% filter(group == pair[2]) %>% pull(speed)
+  test <- t.test(group1, group2,paired = TRUE)
+  list(group1 = pair[1], group2 = pair[2], df = test$parameter,t_value = test$statistic, p_value = test$p.value)
+})
+
+pairwise_results <- bind_rows(pairwise_tests) %>%
+  mutate(p_adjusted = p.adjust(p_value, method = "bonferroni"))
+
+annotations <- pairwise_results %>%
+  mutate(significance = ifelse(p_adjusted < 0.001, "***", ifelse(p_adjusted < 0.01, "**", ifelse(p_adjusted < 0.05, "*", "n.s.")))) %>%
+  select(group1, group2, significance)
+
+# 在柱状图上添加显著性标记
+p <- p + geom_signif(
+    comparisons = comparisons,
+    annotations = annotations$significance,
+    map_signif_level = TRUE,
+    test = "t.test",
+    step_increase = 0.1
+  ) + ylim(1,5)
+
+# 打印图形
+print(p)
+# ggsave("E:/3、论文撰写/【表征学习】/数据及代码整理/behavior/face_speed.jpg", plot = p, width = 6, height = 4)
+
+```
+## Fig2c:标准结构图
+```{r}
+n_points <- 16
+grid_data <- data.frame(
+  x = rep(seq(-1, 1, length.out = 4), times = 4),
+  y = rep(seq(-1, 1, length.out = 4), each = 4),
+  label = 1:n_points
+)
+
+# 绘制四方网格并添加标签
+p <- ggplot(grid_data, aes(x = x, y = y)) +
+  geom_point(size = 3) +
+  geom_text(aes(label = label), hjust = -0.6, vjust = -0.3, size = 10) +
+  scale_x_continuous(breaks = seq(-1, 1, by = 0.5)) +
+  scale_y_continuous(breaks = seq(-1, 1, by = 0.5)) +
+  xlim(-1.2, 1.2) +  # 设置x轴的阈限
+  ylim(-1.2, 1.2) +  # 设置y轴的阈限
+  theme_minimal() +
+  labs(x = "X", y = "Y", title = "4x4 Grid with Labels and Limits (-1 to 1)")+
+  theme_minimal()+
+  theme(
+    panel.grid.major = element_blank(),  # 删除主网格线
+    panel.grid.minor = element_blank()  # 删除次网格线
+  )
+
+ggsave("E:/3、论文撰写/表征学习/数据及代码整理/behavior/mds.png", plot = p, width = 8, height = 6)
+
+```
+## Fig2d placement任务MDS降维
+计算面孔之间的马氏距离
+```{r}
+faceplace_df <- read.csv("E:/3、论文撰写/表征学习/数据及代码整理/behavior/face_placement.csv")
+# 提取点的坐标
+extract_points <- function(df) {
+  matrix(c(df$x/100, df$y/100), ncol = 2)
+}
+# 计算马氏距离矩阵
+calculate_mahalanobis_matrix <- function(points) {
+  cov_matrix <- cov(points)
+  inv_cov_matrix <- solve(cov_matrix)
+  mahalanobis_matrix <- matrix(0, nrow = nrow(points), ncol = nrow(points))
+  for (i in 1:nrow(points)) {
+    for (j in 1:nrow(points)) {
+      if (i != j) {
+        mahalanobis_matrix[i, j] <- sqrt(t(points[i, ] - points[j, ]) %*% inv_cov_matrix %*% (points[i, ] - points[j, ]))
+      }
+    }
+  }
+  return(mahalanobis_matrix)
+}
+
+# 计算每个被试的每组面孔的距离矩阵
+diatance_matrices <- list()
+subjects <- unique(faceplace_df$id)
+
+for (subject in subjects) {
+  subject_data <- subset(faceplace_df, id == subject)
+  points <- extract_points(subject_data)
+  diatance_matrix <- calculate_mahalanobis_matrix(points)
+  diatance_matrices[[as.character(subject)]] <- diatance_matrix
+}
+average_distance_matrix <- matrix(0, nrow = 16, ncol = 16)
+# 计算所有被试的距离平均值
+for (i in 1:16) {
+  for (j in 1:16) {
+    distances <- sapply(diatance_matrices, function(mat) mat[i, j])
+    average_distance_matrix[i, j] <- mean(distances)
+  }
+}
+```
+绘图
+```{r}
+# mds
+mds_result <- cmdscale(average_distance_matrix, k = 2)
+
+reduction_data <- data.frame(
+  X = mds_result[, 1],
+  Y = mds_result[, 2],
+  face_id = 1:16)
+
+
+# 绘制降维结果
+p <- ggplot(reduction_data, aes(x = X, y = Y)) +
+  geom_point(size = 2) +
+  geom_text(aes(label = face_id), hjust  = -1, size = 8) +  # 在每个点上标注面孔ID
+  labs(title = "mds of Mahalanobis Distances",
+       x = "mds Dimension 1",
+       y = "mds Dimension 2") +
+  theme_minimal()+
+  theme(
+    panel.grid.major = element_blank(),  # 删除主网格线
+    panel.grid.minor = element_blank(),   # 删除次网格线
+    axis.text = element_text(size = 20, face = "bold", color = "black"),  # 加粗坐标轴数字
+    axis.line = element_line(size = 1, color = "black")  # 添加坐标轴线
+  )
+# ggsave("E:/3、论文撰写/表征学习/数据及代码整理/behavior/mds_of_Mahalanobis.png", plot = p, width = 8, height = 6)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# 训练阶段结果，relate to FigS2
+## FigS1a:每个block的反应时的分析
+```{r}
+# 绘制带数据点的箱线图
+RT = read.csv("E:/3、论文撰写/【表征学习】/数据及代码整理/behavior/learn_block_RT.csv")
+RT$block = as.factor(RT$block)
+RT$run = as.factor(RT$run)
+
+p <- ggplot(RT, aes(x = block, y = RTmean, fill = run)) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.6) +  # 绘制箱线图，不显示异常值
+  geom_jitter(aes(color = run), width = 0.2, size = 1.5, alpha = 0.6) +  # 添加抖动点
+  geom_smooth(method = "lm", se = TRUE, aes(group = run, color = run)) +
+  # scale_y_continuous(breaks = c(0, 0.25, 0.5, 0.75, 1),  # 自定义y轴刻度
+  #                    labels = c("0.00", "0.25", "0.50", "0.75", "1.00")) +
+  labs(title = "Boxplot of RT by block",
+       x = "block",
+       y = "RT") +
+  theme_minimal() +
+  theme(
+    panel.grid.major = element_blank(),  # 删除主网格线
+    panel.grid.minor = element_blank(),   # 删除次网格线
+    axis.text = element_text(size = 15, face = "bold",color = "black"),  # 加粗坐标轴数字
+    axis.line = element_line(size = 0.5, color = "black")  # 添加坐标轴线
+  )   
+
+# ggsave("E:/3、论文撰写/表征学习/数据及代码整理/behavior/block_RT.jpg", plot = p, width = 15, height = 4)
+```
+### FigS1a统计分析:组间t检验(三个run之间的t检验结果)
+```{r}
+RT_mean=data.frame(dis = aggregate(RT$RTmean,by=list(RT$run),FUN=mean))
+RT_mean=data.frame(dis = aggregate(RT$RTmean,by=list(RT$run),FUN=sd))
+results <- RT %>%
+  group_by(run) %>%
+  summarise(rt = list(RTmean)) %>%
+  ungroup() %>%
+  mutate(pair = list(combn(run, 2, simplify = FALSE))) %>%
+  unnest(pair) %>%
+  mutate(t_test = map(pair, ~{
+    group1 <- RT$RTmean[RT$run == .x[1]]
+    group2 <- RT$RTmean[RT$run == .x[2]]
+    t.test(group1, group2)
+  })) %>%
+  transmute(group1 = map_chr(pair, 1),
+            group2 = map_chr(pair, 2),
+            p_value = map_dbl(t_test, "p.value"),
+            t_value = map_dbl(t_test, "statistic"),
+            df = map_dbl(t_test, "parameter"),
+            conf_int = map(t_test, "conf.int"))
+```
+### FigS1a统计分析:比较沿着block变化的斜率（按照run分组计算）
+```{r}
+RT$block <- as.numeric(RT$block)
+RT$id <- as.factor(RT$id)
+
+results <- list()
+for (r in unique(RT$run)) {
+  data_subset <- subset(RT, run == r)
+  model <- lmer(RTmean ~ block + (1 | id), data = data_subset)
+  results[[as.character(r)]] <- summary(model)
+}
+# 提取并打印每个run的估计值和p值
+for (r in names(results)) {
+  model_summary <- results[[r]]
+  estimate <- model_summary$coefficients["block", "Estimate"]
+  p_value <- model_summary$coefficients["block", "Pr(>|t|)"]
+  std <- model_summary$coefficients["block", "Std. Error"]
+  cat("Run:", r, "\n")
+  cat("Estimate for block:", estimate, "\n")
+  cat("Std for block:", std, "\n")
+  cat("p-value for block:", p_value, "\n\n")
+}
+
+```
+
+## FigS1b左面板:每个面孔的反应时分析[run1阶段,箱线图]
+```{r}
+RT = read.csv("E:/3、论文撰写/表征学习/数据及代码整理/behavior/learn_face_RT.csv")
+# 绘制带数据点的箱线图
+RT$face = as.factor(RT$face)
+RT$FaceCue = as.factor(RT$FaceCue)
+RT$cue = as.factor(RT$cue)
+RT$run = as.factor(RT$run)
+# 其中第一个run的结果，并按照面孔被学习速度RT的快慢画图
+d1 <- RT %>% 
+  filter(run %in% c(1))
+means <- d1 %>%
+  group_by(face) %>%
+  summarise(mean_RT = median(RTmean, na.rm = TRUE)) %>%
+  arrange(mean_RT)  # 按中值升序排列
+
+d1$face <- factor(d1$face, levels = means$face)
+
+p <- ggplot(d1, aes(x = face, y = RTmean, fill = run)) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.6) +  # 绘制箱线图，不显示异常值
+  geom_jitter(aes(color = run), width = 0.2, size = 1.5, alpha = 0.6) +  # 添加抖动点
+  labs(title = "Boxplot of speed by Face",
+       x = "Face",
+       y = "RT") +
+  theme_minimal() +
+  theme(
+    # axis.text.x = element_text(angle = 45, hjust = 1),# 旋转x轴标签以避免重叠
+    panel.grid.major = element_blank(),  # 删除主网格线
+    panel.grid.minor = element_blank(),   # 删除次网格线
+    axis.text = element_text(size = 15, face = "bold",color = "black"),  # 加粗坐标轴数字
+    axis.line = element_line(size = 0.5, color = "black")  # 添加坐标轴线
+  )
+```
+## FigS1b右面板:每个面孔学习速度[run1阶段,箱线图]
+```{r}
+speed = read.csv(file="E:/3、论文撰写/表征学习/数据及代码整理/behavior/learn_face_speed.csv")
+# 绘制带数据点的箱线图
+speed$face = as.factor(speed$face)
+speed$FaceCue = as.factor(speed$FaceCue)
+speed$cue = as.factor(speed$cue)
+speed$run = as.factor(speed$run)
+
+# 其中第一个run的结果，并按照面孔被学习速度的快慢画图
+d1 <- speed %>%
+  filter(run %in% c(1))
+means <- d1 %>%
+  group_by(face) %>%
+  summarise(mean_speed = median(speed, na.rm = TRUE)) %>%
+  arrange(mean_speed)  # 按中值升序排列
+
+d1$face <- factor(d1$face, levels = means$face)
+
+ggplot(d1, aes(x = face, y = speed, fill = run)) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.6) +  # 绘制箱线图，不显示异常值
+  geom_jitter(aes(color = run), width = 0.2, size = 1.5, alpha = 0.6) +  # 添加抖动点
+  labs(title = "Boxplot of speed by Face",
+       x = "Face",
+       y = "speed") +
+  theme_minimal() +
+  theme(
+    panel.grid.major = element_blank(),  # 删除主网格线
+    panel.grid.minor = element_blank(),   # 删除次网格线
+    axis.text = element_text(size = 15, face = "bold",color = "black"),  # 加粗坐标轴数字
+    axis.line = element_line(size = 0.5, color = "black")  # 添加坐标轴线
+  )
+```
+## FigS1c左面板:将面孔的平均速度可视化[run1阶段,热图]
+```{r}
+RT = read.csv("E:/3、论文撰写/【表征学习】/数据及代码整理/behavior/learn_face_RT.csv")
+# 绘制带数据点的箱线图
+RT$face = as.factor(RT$face)
+RT$FaceCue = as.factor(RT$FaceCue)
+RT$cue = as.factor(RT$cue)
+RT$run = as.factor(RT$run)
+# 其中第一个run的结果，并按照面孔被学习速度RT的快慢画图
+d1 <- RT %>% 
+  filter(run %in% c(1))
+means <- d1 %>%
+  group_by(face) %>%
+  summarise(mean_RT = median(RTmean, na.rm = TRUE)) %>%
+  arrange(face)  # 按中值升序排列
+
+
+grid_data <- data.frame(
+  face = means$face,
+  x = rep(seq(-1, 1, length.out = 4), times = 4),
+  y = rep(seq(-1, 1, length.out = 4), each = 4),
+  mean_RT = means$mean_RT
+)
+
+p <-  ggplot(grid_data, aes(x = x, y = y, fill = mean_RT)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = face), color = "black", size = 8) +  # 显示标签
+  scale_fill_gradient(low = "red", high = "blue") +
+  labs(title = "Heatmap of Mean Learning Speed by Face", x = "X", y = "Y") +
+  theme_minimal() +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.text = element_text(size = 15, face = "bold", color = "black"),
+    axis.title = element_text(size = 15, face = "bold", color = "black"),
+    axis.line = element_line(size = 0.5, color = "black")
+  )
+
+# ggsave("E:/3、论文撰写/表征学习/数据及代码整理/behavior/face_RT_run1.jpg", plot = p, width = 8, height = 6)
+
+```
+
+## FigS1c右面板:将所有面孔分为四分类，统计上验证热图差异 
+```{r}
+Rank_consistent <- subset(d1,face %in% c(13,10,7,4))
+Morality_excellent <- subset(d1,face %in% c(13,9,5,1))
+Competence_excellent <- subset(d1,face %in% c(13,14,15,16))
+others <- subset(d1,face %in% c(11,12,2,6,3,8))
+
+# 合并数据并添加组标签
+Rank_consistent$group <- "Rank_consistent"
+Morality_excellent$group <- "Morality_excellent"
+Competence_excellent$group <- "Competence_excellent"
+others$group <- "others"
+
+data <- rbind(Rank_consistent, Morality_excellent, Competence_excellent, others)
+data$group <- factor(data$group, levels = c('Rank_consistent','Competence_excellent','Morality_excellent','others'))
+
+# 按组按被试计算speed的平均值
+data_mean=aggregate(data$RTmean,by=list(data$id,data$group),FUN=mean)
+colnames(data_mean)=c("is","group","RTmean")
+
+
+
+# 绘制箱线图
+p <- ggplot(data_mean, aes(x = group, y = RTmean)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(position = position_jitter(0.2), alpha = 0.6) +
+  theme_minimal() +  
+  ylab("RT")+
+  scale_y_continuous(breaks = c(2.5, 5.0, 7.5, 10.0,12.5,15),  # 自定义y轴刻度
+                     labels = c("2.5", "5.0", "7.5", "10.0","12.5","15")) +
+  theme(
+    axis.text.x = element_text(angle = 10, hjust = 0.5,vjust = 0.5),# 旋转x轴标签以避免重叠
+    panel.grid.major = element_blank(),  # 删除主网格线
+    panel.grid.minor = element_blank(),   # 删除次网格线
+    axis.text = element_text(size = 15, face = "bold",color = "black"),  # 加粗坐标轴数字
+    axis.line = element_line(size = 0.5, color = "black")  # 添加坐标轴线
+  )  
+
+comparisons <- list(
+  c("Rank_consistent", "Competence_excellent"),
+  c("Competence_excellent", "Morality_excellent"),
+  c("Rank_consistent", "Morality_excellent"),
+  c("Morality_excellent", "others"),
+  c("Competence_excellent", "others"),
+  c("Rank_consistent", "others")
+)
+
+# # 计算成对的t检验，并提取t值和p值
+pairwise_tests <- map(comparisons, function(pair) {
+  group1 <- data_mean %>% filter(group == pair[1]) %>% pull(RTmean)
+  group2 <- data_mean %>% filter(group == pair[2]) %>% pull(RTmean)
+  test <- t.test(group1, group2,paired = TRUE)
+  list(group1 = pair[1], group2 = pair[2], df = test$parameter,t_value = test$statistic, p_value = test$p.value)
+})
+
+pairwise_results <- bind_rows(pairwise_tests) %>%
+  mutate(p_adjusted = p.adjust(p_value, method = "bonferroni"))
+
+annotations <- pairwise_results %>%
+  mutate(significance = ifelse(p_adjusted < 0.001, "***", ifelse(p_adjusted < 0.01, "**", ifelse(p_adjusted < 0.05, "*", "n.s.")))) %>%
+  select(group1, group2, significance)
+
+# 在柱状图上添加显著性标记
+p <- p + geom_signif(
+    comparisons = comparisons,
+    annotations = annotations$significance,
+    map_signif_level = TRUE,
+    test = "t.test",
+    step_increase = 0.1
+  )
+
+# 打印图形
+print(p)
+
+# ggsave("E:/3、论文撰写/【表征学习】/数据及代码整理/behavior/face_RT.jpg", plot = p, width = 6, height = 4)
+
+```
+
+
+
+
+
