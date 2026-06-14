@@ -1,0 +1,30 @@
+
+
+timing_tool.py -multi_timing_3col_tsv ../../stimulus_orig/rbCue.glm/F1_run_[1-6].tsv -tsv_labels onset duration trial_type -write_multi_timing ./rbCue.
+
+timing_tool.py -multi_timing_3col_tsv ../../stimulus_orig/rbCue.glm.bms/F2_GLM1_run_[1-6].tsv -tsv_labels onset duration trial_type D -write_multi_timing ./rbcue.GLM1.
+timing_tool.py -multi_timing_3col_tsv ../../stimulus_orig/rbCue.glm.bms/F2_GLM2_run_[1-6].tsv -tsv_labels onset duration trial_type I -write_multi_timing ./rbcue.GLM2.
+timing_tool.py -multi_timing_3col_tsv ../../stimulus_orig/rbCue.glm.bms/F2_GLM3_run_[1-6].tsv -tsv_labels onset duration trial_type E -write_multi_timing ./rbcue.GLM3.
+timing_tool.py -multi_timing_3col_tsv ../../stimulus_orig/rbCue.glm.bms/F2_GLM4_run_[1-6].tsv -tsv_labels onset duration trial_type A -write_multi_timing ./rbcue.GLM4.
+timing_tool.py -multi_timing_3col_tsv ../../stimulus_orig/rbCue.glm.bms/F2_GLM5_run_[1-6].tsv -tsv_labels onset duration trial_type A -write_multi_timing ./rbcue.GLM5.
+timing_tool.py -multi_timing_3col_tsv ../../stimulus_orig/rbCue.glm.bms/F2_GLM6_run_[1-6].tsv -tsv_labels onset duration trial_type relevant_rank  irrelevant_rank Manhattan -write_multi_timing ./rbcue.GLM6.
+
+
+
+timing_tool.py -multi_timing_3col_tsv ../../stimulus_orig/wCue.glm/F1_run_[7-9].tsv -tsv_labels onset duration trial_type -write_multi_timing ./wCue.
+
+timing_tool.py -multi_timing_3col_tsv ../../stimulus_orig/wCue.glm.bms/F2_GLM1_run_[7-9].tsv -tsv_labels onset duration trial_type D1 -write_multi_timing ./wcue.GLM1.
+timing_tool.py -multi_timing_3col_tsv ../../stimulus_orig/wCue.glm.bms/F2_GLM2_run_[7-9].tsv -tsv_labels onset duration trial_type D2 -write_multi_timing ./wcue.GLM2.
+timing_tool.py -multi_timing_3col_tsv ../../stimulus_orig/wCue.glm.bms/F2_GLM3_run_[7-9].tsv -tsv_labels onset duration trial_type E -write_multi_timing ./wcue.GLM3.
+timing_tool.py -multi_timing_3col_tsv ../../stimulus_orig/wCue.glm.bms/F2_GLM4_run_[7-9].tsv -tsv_labels onset duration trial_type A -write_multi_timing ./wcue.GLM4.
+timing_tool.py -multi_timing_3col_tsv ../../stimulus_orig/wCue.glm.bms/F2_GLM5_run_[7-9].tsv -tsv_labels onset duration trial_type A -write_multi_timing ./wcue.GLM5.
+
+timing_tool.py -multi_timing_3col_tsv ../../stimulus_orig/wCue.glm.bms/F2_GLM6_run_[7-9].tsv -tsv_labels onset duration trial_type relevant_rank  irrelevant_rank Manhattan -write_multi_timing ./wcue.GLM6.
+
+
+timing_tool.py -multi_timing_3col_tsv ../../stimulus_orig/rbCue.glm/F2_easy_run_[1-6].tsv -tsv_labels onset duration trial_type relevant_rank irrelevant_rank I -write_multi_timing ./rbcue.F2.
+
+
+timing_tool.py -multi_timing_3col_tsv ../../stimulus_orig/sr3.glm/pre/s001pre_Run[1-3].tsv -tsv_labels onset duration trial_type resp correct -write_multi_timing ./s001.
+
+timing_tool.py -multi_timing_3col_tsv ../../stimulus_orig/sr3.rsa/32face/s001-2pre/SR3_Run[1-3].tsv -tsv_labels onset duration trial_type rel_rank irrel_rank -write_multi_timing ./sr3.rsa.s12pre.

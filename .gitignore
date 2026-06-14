@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.ipynb_checkpoints/
+
+# Environments
+.venv/
+venv/
+env/
+conda-env/
+*.egg-info/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+
+# Large data files
+*.nii
+*.nii.gz
+*.mgz
+*.mat
+*.h5
+*.hdf5
+*.npy
+*.npz
+*.pkl
+*.pickle
+
+# Intermediate outputs
+derivatives/
+preprocessed/
+cache/
+tmp/
+results/intermediate/
+outputs/intermediate/
+
+# Large model files
+*.pt
+*.pth
+*.ckpt
+*.onnx
+
+# Keep final tables and final outputs
+!tables/*.csv
+!tables/*.xlsx
+!results/final/

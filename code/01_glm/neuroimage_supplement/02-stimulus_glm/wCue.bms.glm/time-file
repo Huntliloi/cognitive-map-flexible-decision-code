@@ -1,0 +1,4 @@
+timing_tool.py -multi_timing_3col_tsv ../../stimulus_orig/wCue.glm.bms/F2_GLM1_run_[7-9].tsv -tsv_labels onset duration trial_type relevant_rank  irrelevant_rank D1 -write_multi_timing ./wcue.GLM1.
+timing_tool.py -multi_timing_3col_tsv ../../stimulus_orig/wCue.glm.bms/F2_GLM2_run_[7-9].tsv -tsv_labels onset duration trial_type relevant_rank  irrelevant_rank D2 -write_multi_timing ./wcue.GLM2.
+timing_tool.py -multi_timing_3col_tsv ../../stimulus_orig/wCue.glm.bms/F2_GLM3_run_[7-9].tsv -tsv_labels onset duration trial_type relevant_rank  irrelevant_rank E -write_multi_timing ./wcue.GLM3.
+timing_tool.py -multi_timing_3col_tsv ../../stimulus_orig/wCue.glm.bms/F2_GLM4_run_[7-9].tsv -tsv_labels onset duration trial_type relevant_rank  irrelevant_rank A -write_multi_timing ./wcue.GLM4.

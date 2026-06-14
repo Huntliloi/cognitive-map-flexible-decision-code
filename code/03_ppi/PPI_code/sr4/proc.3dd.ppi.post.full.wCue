@@ -1,0 +1,36 @@
+#!/bin/tcsh
+
+set subj = $1
+set seed = $2
+set glm1_rpath = $3
+set prefix_3dd = PPI.$seed.
+
+# ------------------------------
+# run the regression analysis
+3dDeconvolve -input $glm1_rpath/${subj}/pb04.$subj.r*.scale+tlrc.HEAD                     \
+    -censor $glm1_rpath/${subj}/motion_${subj}_censor.1D             \
+    -ortvec $glm1_rpath/${subj}/motion_demean.1D mot_demean           \
+    -polort 3                                                         \
+    -num_stimts 5                                                    \
+    -stim_times 1 stimuli/wCue.ppi.times.F1.txt 'BLOCK(2,1)'         \
+    -stim_label 1 F1                                                 \
+    -stim_times 2 stimuli/wCue.ppi.times.F2.txt 'BLOCK(2,1)'         \
+    -stim_label 2 F2                                                 \
+    -stim_file 3 stimuli/p6.$seed.01.F1.rall.PPI.1D                  \
+    -stim_label 3 PPI.F1                                             \
+    -stim_file 4 stimuli/p6.$seed.02.F2.rall.PPI.1D                  \
+    -stim_label 4 PPI.F2                                             \
+    -stim_file 5 stimuli/ppi.seed.$seed.1D                           \
+    -stim_label 5 PPI.seed                                           \
+    -jobs 8                                                           \
+    -num_glt 2                                                       \
+    -gltsym 'SYM: F2 -F1'                                           \
+    -glt_label 1 F2-F1                                              \
+    -gltsym 'SYM: PPI.F2 -PPI.F1'                                   \
+    -glt_label 2 PPI:F2-F1                                         \
+    -fout -tout -x1D ${prefix_3dd}X.xmat.1D -xjpeg ${prefix_3dd}X.jpg \
+    -x1D_uncensored ${prefix_3dd}X.nocensor.xmat.1D                   \
+    -errts ${prefix_3dd}errts.${subj}                                 \
+    -bucket ${prefix_3dd}stats.$subj
+
+
