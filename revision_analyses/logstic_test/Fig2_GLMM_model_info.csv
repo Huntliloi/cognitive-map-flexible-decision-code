@@ -1,0 +1,8 @@
+﻿model,formula,N_trials,N_participants,random_intercept_SD,converged,optimizer_message,neg_log_likelihood,n_quad
+A_single_dim,resp01 ~ rel*irrel*zsblock,2880,24,0.4486161290767729,True,CONVERGENCE: RELATIVE REDUCTION OF F <= FACTR*EPSMCH,1075.1378321410934,30
+B_mixed_dim,resp01 ~ diag*chooseF1big*zsblockw,1440,24,0.5112446496668468,True,CONVERGENCE: NORM OF PROJECTED GRADIENT <= PGTOL,255.52616722107888,30
+B_raw_block_sensitivity,resp01 ~ diag*chooseF1big*blockw,1440,24,0.511244954085206,True,CONVERGENCE: RELATIVE REDUCTION OF F <= FACTR*EPSMCH,255.52616722108635,30
+C_Congruent_Easy,resp01 ~ relorth*irrelorth*zscblockrb,624,24,0.7277658848864739,True,CONVERGENCE: NORM OF PROJECTED GRADIENT <= PGTOL,130.98689718602418,30
+C_Incongruent_Easy,resp01 ~ relorth*irrelorth*zscblockrb,960,24,0.6174620350447736,True,CONVERGENCE: RELATIVE REDUCTION OF F <= FACTR*EPSMCH,315.1804240259157,30
+C_Congruent_Difficult,resp01 ~ relorth*irrelorth*zscblockrb,528,24,0.12463019918308811,True,CONVERGENCE: NORM OF PROJECTED GRADIENT <= PGTOL,181.2344494965496,30
+C_Incongruent_Difficult,resp01 ~ relorth*irrelorth*zscblockrb,768,24,0.5317622708592185,True,CONVERGENCE: RELATIVE REDUCTION OF F <= FACTR*EPSMCH,397.677047709301,30

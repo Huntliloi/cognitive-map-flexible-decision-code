@@ -1,0 +1,9 @@
+panel,mapping_basis,family,task,region,neural_condition,behavior_variable,behavior_definition,n,r,p_parametric,p_permutation,p_fwe_global,survives_global_fwe_05
+7B,inferred,time_resolved_roi_coding,rbCue,F1rel_IPL_l,F1_rel,rel,choice_effect_legacy_gaussian_glm,24,0.3833470388,0.06444041021,0.06454935451,0.9999900001,False
+7B,inferred,time_resolved_roi_coding,rbCue,D_IPL_l,F2_D,rel,choice_effect_legacy_gaussian_glm,24,0.4426066952,0.03032202593,0.0290097099,0.9978600214,False
+7D,inferred,time_resolved_roi_coding,rbCue,D_insular,F1_rel,rel,choice_effect_legacy_gaussian_glm,24,-0.1375934396,0.5214291665,0.5225547745,1,False
+7D,inferred,time_resolved_roi_coding,rbCue,D_insular,F2_D,rel,choice_effect_legacy_gaussian_glm,24,-0.4464629342,0.02874349363,0.0282597174,0.9970800292,False
+7F,explicit_Rmd,time_resolved_roi_coding,rbCue,chirrel_precuences,F2_D,rel,choice_effect_legacy_gaussian_glm,24,0.4187582417,0.04168359922,0.0409595904,0.9996400036,False
+7F,explicit_Rmd,time_resolved_roi_coding,rbCue,chirrel_precuences,F2_I,irrel,choice_effect_legacy_gaussian_glm,24,-0.04482528899,0.8352451141,0.8355416446,1,False
+7H,inferred,time_resolved_roi_coding,wCue,undiagdiff_insula_r,F2_diagdiff,diag,choice_effect_legacy_gaussian_glm,24,-0.3989929977,0.05343470311,0.05352946471,0.9999500005,False
+7H,inferred,time_resolved_roi_coding,wCue,chdiagdiff_HC_l,F2_diagdiff,diag,choice_effect_legacy_gaussian_glm,24,0.06334739405,0.7687075095,0.7686923131,1,False

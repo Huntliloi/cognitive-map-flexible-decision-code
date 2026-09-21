@@ -1,0 +1,3 @@
+comparison,identical_all_values,max_abs_difference
+Insula_F1_diagonal_rank vs HC_F1_diagonal_rank,True,0.0
+Insula_F2_diagonal_difference vs HC_F2_diagonal_difference,True,0.0

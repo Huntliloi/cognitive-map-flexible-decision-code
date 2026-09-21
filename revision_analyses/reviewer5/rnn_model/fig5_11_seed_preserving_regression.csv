@@ -1,0 +1,3 @@
+term,beta,seed_level_t_statistic,p_seed_trajectory_permutation,p_FWER_across_regression_terms,n_seeds,n_checkpoints
+omega_c,1.0649605958556543,20.62984842710416,0.0002599974000259997,0.0002599974000259997,30,21
+training_time_x_omega_c,0.04968282091696447,5.510228196179914,0.5849641503584964,1.0,30,21

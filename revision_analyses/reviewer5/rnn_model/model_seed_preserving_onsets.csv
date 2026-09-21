@@ -1,0 +1,6 @@
+figure,effect,first_corrected_step,sustained_corrected_step
+Fig5.5,2D RSA beta,100,100.0
+Fig5.5,1D RSA beta,200,200.0
+Fig5.9,Consistency warping omega_c < 1,0,0.0
+Fig5.9,Task-related warping omega_a < 1,250,700.0
+Fig5.11A,Incongruent/congruent accuracy ratio < 1,100,

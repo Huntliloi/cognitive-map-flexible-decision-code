@@ -1,0 +1,5 @@
+family,region,neural_condition,behavior_task,behavior_definition,behavior_variable,n,r,p_parametric,p_permutation,p_fwe_max,survives_fwe_05
+representational_warping,HC_bilateral,congruent,wCue,raw,wCue_raw_congruent,24,0.4544451082,0.02568489324,0.0275097249,0.9058409416,False
+representational_warping,IPLl,attention,rbCue,raw,rbCue_raw_attention,24,0.02608748912,0.9036912604,0.9035909641,1,False
+representational_warping,IPLr,attention,rbCue,raw,rbCue_raw_attention,24,0.2568207028,0.225725953,0.2258377416,1,False
+representational_warping,IPL_bilateral,attention,rbCue,raw,rbCue_raw_attention,24,0.1788650311,0.4030125165,0.4070859291,1,False
